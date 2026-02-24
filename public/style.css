@@ -288,3 +288,29 @@ a:hover{ text-decoration: underline; }
 #app, main{
   min-height:auto !important;
 }
+
+
+/* Wizard product actieknoppen */
+.productActions{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+  flex-wrap:wrap;
+}
+
+.viewBtn, .addToCartBtn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:10px 12px;
+  border-radius:10px;
+  font-weight:800;
+  text-decoration:none;
+  border:0;
+  cursor:pointer;
+}
+
+.addToCartBtn:disabled{
+  opacity:.7;
+  cursor:default;
+}
