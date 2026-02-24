@@ -8,16 +8,61 @@
 </head>
 <body>
   <main class="container">
-    <h1>Welke primer heb ik nodig?</h1>
+    <header class="header">
+      <div class="brand">
+        <div class="logo">P</div>
+        <div>
+          <h1>Welke primer heb ik nodig?</h1>
+          <p class="sub">Doorloop de stappen en krijg direct de juiste primer(s).</p>
+        </div>
+      </div>
+    </header>
 
-    <!-- DIT IS HET MENU/WIZARD BLOK -->
-    <div id="wizard"></div>
+    <section class="card" id="wizardCard">
+      <div class="topbar">
+        <div class="stepMeta">
+          <span id="stepText" class="stepText">Stap</span>
+          <span class="dot">•</span>
+          <span id="stepHint" class="stepHint"></span>
+        </div>
 
-    <!-- RESULTAAT BLOK -->
-    <div id="result" class="hidden"></div>
+        <div class="progressWrap" aria-label="Voortgang">
+          <div class="progressTrack">
+            <div id="progressBar" class="progressBar" style="width:0%"></div>
+          </div>
+          <div id="progressLabel" class="progressLabel">0%</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h2 id="question" class="question">Vraag</h2>
+      <div id="options" class="options"></div>
+
+      <div class="actions">
+        <button id="backBtn" class="btn secondary" disabled>Terug</button>
+        <button id="resetBtn" class="btn ghost">Reset</button>
+      </div>
+    </section>
+
+    <section class="card hidden" id="resultCard">
+      <div class="resultTop">
+        <h2 class="question">Advies</h2>
+        <div class="actions">
+          <button id="resultBackBtn" class="btn secondary">Terug</button>
+          <button id="startOverBtn" class="btn">Opnieuw</button>
+        </div>
+      </div>
+
+      <p id="resultSummary" class="resultSummary"></p>
+      <div id="productList" class="productList"></div>
+    </section>
+
+    <footer class="footer">
+      <small>Tip: voeg later stappen toe zoals staal/aluminium/verzinkt, spray vs 2K, spot vs paneel.</small>
+    </footer>
   </main>
 
-  <!-- BELANGRIJK: LAADT DE WIZARD JS -->
   <script src="/app.js"></script>
 </body>
 </html>
