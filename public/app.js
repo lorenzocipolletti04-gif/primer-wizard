@@ -17,7 +17,7 @@ const startOverBtn = document.getElementById("startOverBtn");
 const resultSummary = document.getElementById("resultSummary");
 const productList = document.getElementById("productList");
 
-// Wizard definities (je kunt later makkelijk stappen toevoegen)
+// Wizard definities
 const steps = [
   {
     id: "substrate",
@@ -44,7 +44,6 @@ const steps = [
       ],
       bestaande_lak: [
         { label: "Egaliseren / schuurgrond (primer/filler)", value: "egaliseren" }
-        // later evt: { label: "Alleen sealen / wet-on-wet", value: "sealen" }
       ],
       plamuur: [
         { label: "Vullen en strak schuren (primer/filler)", value: "vullen" }
@@ -56,19 +55,16 @@ const steps = [
 let stepIndex = 0;
 let answers = {};
 
-// Zet UI in wizard-modus
 function showWizard() {
   resultCard.classList.add("hidden");
   wizardCard.classList.remove("hidden");
 }
 
-// Zet UI in resultaat-modus
 function showResult() {
   wizardCard.classList.add("hidden");
   resultCard.classList.remove("hidden");
 }
 
-// Progress + step header updaten
 function updateTopBar() {
   const total = steps.length;
   const current = stepIndex + 1;
@@ -76,24 +72,21 @@ function updateTopBar() {
   stepText.textContent = `Stap ${current} van ${total}`;
   stepHint.textContent = steps[stepIndex].hint || "";
 
-  const pct = Math.round(((current - 1) / total) * 100); // 0% op stap 1, 50% op stap 2 (bij 2 stappen)
+  const pct = Math.round(((current - 1) / total) * 100);
   progressBar.style.width = `${pct}%`;
   progressLabel.textContent = `${pct}%`;
 
   backBtn.disabled = stepIndex === 0;
 }
 
-// Opties voor huidige stap ophalen
 function getCurrentOptions() {
   const step = steps[stepIndex];
   if (step.options) return step.options;
 
-  // afhankelijk van substrate
   const substrate = answers.substrate;
   return (step.optionsMap && step.optionsMap[substrate]) ? step.optionsMap[substrate] : [];
 }
 
-// Stap renderen
 function renderStep() {
   showWizard();
   updateTopBar();
@@ -105,7 +98,6 @@ function renderStep() {
   optionsEl.innerHTML = "";
 
   if (!opts.length) {
-    // Als stap 2 geen opties heeft (bijv. substrate nog niet gekozen)
     const msg = document.createElement("div");
     msg.className = "product";
     msg.innerHTML = `<div class="productName">Geen opties beschikbaar</div>
@@ -124,11 +116,9 @@ function renderStep() {
   });
 }
 
-// Selectie verwerken
 function selectOption(stepId, value) {
   answers[stepId] = value;
 
-  // Als substrate wordt aangepast: situation resetten
   if (stepId === "substrate") {
     delete answers["situation"];
   }
@@ -139,32 +129,27 @@ function selectOption(stepId, value) {
     return;
   }
 
-  // Laatste stap gekozen -> advies ophalen
   fetchAdvice();
 }
 
-// Terug knop
 function goBack() {
   if (stepIndex === 0) return;
   stepIndex -= 1;
   renderStep();
 }
 
-// Reset
 function resetAll() {
   stepIndex = 0;
   answers = {};
   renderStep();
 }
 
-// Resultaat terug (naar laatste stap)
 function resultBack() {
   showWizard();
   stepIndex = Math.max(0, steps.length - 1);
   renderStep();
 }
 
-// API call
 async function fetchAdvice() {
   showResult();
   resultSummary.textContent = "Advies ophalen…";
@@ -198,9 +183,34 @@ async function fetchAdvice() {
         </div>
         <div class="productName">${escapeHtml(p.name || "")}</div>
         ${p.notes ? `<div class="productNotes">${escapeHtml(p.notes)}</div>` : ""}
-        ${p.url ? `<div class="productLink"><a href="${p.url}" target="_blank" rel="noreferrer">Bekijk product</a></div>` : ""}
+
+        <div class="productActions">
+          ${p.url ? `<a class="viewBtn" href="${p.url}" target="_blank" rel="noreferrer">Bekijk product</a>` : ""}
+          ${p.ccvProductId ? `<button class="addToCartBtn" type="button" data-ccv-id="${escapeHtml(p.ccvProductId)}">Voeg toe aan winkelwagen</button>` : ""}
+        </div>
       </div>
     `).join("");
+
+    // Add-to-cart knoppen (werkt via parent script op lakopmaat.nl)
+    productList.querySelectorAll(".addToCartBtn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const productId = btn.getAttribute("data-ccv-id");
+        if (!productId) return;
+
+        window.parent.postMessage(
+          { type: "CCV_ADD_TO_CART", productId, qty: 1 },
+          "https://www.lakopmaat.nl"
+        );
+
+        const old = btn.textContent;
+        btn.textContent = "Toegevoegd…";
+        btn.disabled = true;
+        setTimeout(() => {
+          btn.textContent = old;
+          btn.disabled = false;
+        }, 1200);
+      });
+    });
 
   } catch (e) {
     resultSummary.textContent = "Er ging iets mis bij het ophalen van het advies.";
@@ -217,11 +227,9 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-// Events
 backBtn.addEventListener("click", goBack);
 resetBtn.addEventListener("click", resetAll);
 resultBackBtn.addEventListener("click", resultBack);
 startOverBtn.addEventListener("click", resetAll);
 
-// Start
 renderStep();
