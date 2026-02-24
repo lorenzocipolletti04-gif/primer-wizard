@@ -4,8 +4,19 @@ CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
   brand TEXT NOT NULL,
   name TEXT NOT NULL,
+
+  -- (Aanrader) jouw SKU/productcode, liefst gelijk aan CCV SKU
   code TEXT,
+
+  -- Fallback link (bv. fabrikant/extern)
   url TEXT,
+
+  -- Link naar jouw productpagina in CCV Shop (heeft voorkeur boven url)
+  shop_url TEXT,
+
+  -- CCV product-id die in de add-to-cart payload zit (bv. 900588323)
+  ccv_product_id TEXT,
+
   notes TEXT
 );
 
