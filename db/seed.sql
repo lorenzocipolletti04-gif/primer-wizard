@@ -35,3 +35,17 @@ INSERT OR REPLACE INTO rule_products (rule_id, product_id, step) VALUES
   ('r_bestaande_lak_egaliseren', 'fx_tsp110', 1),
 
   ('r_plamuur_vullen', 'fx_tsp110', 1);
+
+
+
+-- =========================================================
+-- CCV Shop koppeling (vul later per product stap voor stap)
+-- =========================================================
+-- 1) Zoek de CCV product-id via DevTools (Network) bij "Toevoegen aan winkelwagen".
+--    In jouw payload zie je bijvoorbeeld: xajaxargs[]=900588323  -> dat is ccv_product_id.
+--
+-- 2) Vul daarna de shop_url + ccv_product_id in:
+-- UPDATE products
+-- SET shop_url = 'https://www.lakopmaat.nl/nl/<product-slug>',
+--     ccv_product_id = '900588323'
+-- WHERE id = '<jouw_product_id_in_db>';
