@@ -1,32 +1,43 @@
 :root{
-  --bg:#0b1220;
-  --card:#0f1b33;
-  --card2:#111f3b;
-  --text:#e9eeff;
-  --muted:#a8b3dd;
-  --line:#223154;
-  --accent:#4f7cff;
-  --accent2:#2f56d6;
-  --good:#22c55e;
+  --bg:#ffffff;
+
+  /* cards */
+  --card:#ffffff;
+  --card2:#ffffff;
+
+  /* text */
+  --text:#0f172a;        /* bijna zwart */
+  --muted:#475569;       /* grijs */
+  --line:#e2e8f0;        /* lichtgrijze rand */
+
+  /* accents */
+  --accent:#2563eb;
+  --accent2:#1d4ed8;
+
+  --good:#16a34a;
 }
 
 *{ box-sizing:border-box; }
 
+html, body{
+  height:auto;
+}
+
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  background: radial-gradient(1200px 800px at 20% -10%, #1b2a55 0%, transparent 60%),
-              radial-gradient(900px 700px at 110% 10%, #142a4d 0%, transparent 55%),
-              var(--bg);
+  background: var(--bg) !important;
   color:var(--text);
 }
 
+/* Container houdt alles compact zodat er geen enorme lege onderkant ontstaat */
 .container{
   max-width: 920px;
   margin: 0 auto;
   padding: 24px;
 }
 
+/* Header */
 .header{ margin-bottom: 14px; }
 
 .brand{
@@ -39,13 +50,13 @@ body{
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), #9db6ff);
-  color:#07102a;
+  background: linear-gradient(135deg, var(--accent), #93c5fd);
+  color:#ffffff;
   font-weight: 900;
   display:flex;
   align-items:center;
   justify-content:center;
-  box-shadow: 0 10px 30px rgba(79,124,255,.25);
+  box-shadow: 0 10px 25px rgba(37,99,235,.18);
 }
 
 h1{
@@ -59,16 +70,18 @@ h1{
   color: var(--muted);
 }
 
+/* Card */
 .card{
-  background: linear-gradient(180deg, var(--card) 0%, var(--card2) 100%);
+  background: var(--card);
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 16px;
-  box-shadow: 0 18px 60px rgba(0,0,0,.25);
+  box-shadow: 0 12px 35px rgba(15,23,42,.08);
 }
 
 .hidden{ display:none; }
 
+/* Topbar / progress */
 .topbar{
   display:flex;
   gap: 16px;
@@ -86,7 +99,7 @@ h1{
 }
 
 .stepText{ color: var(--text); font-weight: 800; }
-.dot{ opacity:.8; }
+.dot{ opacity:.7; }
 .stepHint{ color: var(--muted); }
 
 .progressWrap{
@@ -100,15 +113,15 @@ h1{
   height: 10px;
   width: 200px;
   border-radius: 999px;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.06);
+  background: #f1f5f9;
+  border: 1px solid var(--line);
   overflow:hidden;
 }
 
 .progressBar{
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), #90abff);
+  background: linear-gradient(90deg, var(--accent), #60a5fa);
   width: 0%;
   transition: width .25s ease;
 }
@@ -132,6 +145,7 @@ h1{
   letter-spacing: -0.2px;
 }
 
+/* Options */
 .options{
   display:grid;
   gap: 10px;
@@ -141,22 +155,24 @@ h1{
   text-align:left;
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.03);
+  border: 1px solid var(--line);
+  background: #ffffff;
   color: var(--text);
   cursor: pointer;
-  transition: transform .06s ease, border-color .18s ease, background .18s ease;
+  transition: transform .06s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
 }
 
 .optionBtn:hover{
-  border-color: rgba(79,124,255,.55);
-  background: rgba(79,124,255,.10);
+  border-color: rgba(37,99,235,.45);
+  background: rgba(37,99,235,.06);
+  box-shadow: 0 6px 18px rgba(37,99,235,.10);
 }
 
 .optionBtn:active{
   transform: translateY(1px);
 }
 
+/* Actions / buttons */
 .actions{
   display:flex;
   gap: 10px;
@@ -167,18 +183,20 @@ h1{
 .btn{
   padding: 10px 14px;
   border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.14);
+  border: 1px solid rgba(29,78,216,.25);
   background: var(--accent2);
-  color: var(--text);
+  color: #ffffff;
   cursor:pointer;
   font-weight: 700;
 }
 
-.btn:hover{ filter: brightness(1.06); }
+.btn:hover{ filter: brightness(1.03); }
 .btn:active{ transform: translateY(1px); }
 
 .btn.secondary{
-  background: transparent;
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--line);
 }
 
 .btn.ghost{
@@ -195,6 +213,7 @@ h1{
   transform: none;
 }
 
+/* Results */
 .resultTop{
   display:flex;
   justify-content: space-between;
@@ -215,10 +234,11 @@ h1{
 }
 
 .product{
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.03);
+  border: 1px solid var(--line);
+  background: #ffffff;
   border-radius: 14px;
   padding: 12px 14px;
+  box-shadow: 0 10px 25px rgba(15,23,42,.06);
 }
 
 .productHead{
@@ -233,9 +253,9 @@ h1{
   font-size: 12px;
   padding: 3px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.14);
+  border: 1px solid var(--line);
   color: var(--muted);
-  background: rgba(0,0,0,.10);
+  background: #f8fafc;
 }
 
 .productName{
@@ -253,7 +273,7 @@ h1{
 }
 
 a{
-  color: #b7c7ff;
+  color: var(--accent2);
   text-decoration:none;
 }
 a:hover{ text-decoration: underline; }
@@ -261,4 +281,9 @@ a:hover{ text-decoration: underline; }
 .footer{
   margin-top: 14px;
   color: var(--muted);
+}
+
+/* Extra: voorkomt “rare” extra hoogte in sommige embeds */
+#app, main{
+  min-height:auto !important;
 }
