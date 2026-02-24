@@ -163,9 +163,10 @@ h1{
 }
 
 .optionBtn:hover{
-  border-color: rgba(37,99,235,.45);
-  background: rgba(37,99,235,.06);
-  box-shadow: 0 6px 18px rgba(37,99,235,.10);
+  border-color: #ffd200;
+  background: linear-gradient(90deg, #ffd200, #ffea70);
+  box-shadow: 0 6px 18px rgba(255,210,0,.25);
+  color: #111; /* zorgt dat tekst goed leesbaar blijft */
 }
 
 .optionBtn:active{
