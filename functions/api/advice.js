@@ -16,9 +16,16 @@ export async function onRequestGet({ env, request }) {
   if (!rule) return json({ error: "No advice found" }, 404);
 
   // Producten ophalen
-  const products = await env.DB
+  const rows = await env.DB
     .prepare(`
-      SELECT p.brand, p.name, p.code, p.url, p.notes, rp.step
+      SELECT
+        rp.step,
+        p.brand,
+        p.name,
+        p.code,
+        p.notes,
+        COALESCE(p.shop_url, p.url) AS url,
+        p.ccv_product_id AS ccvProductId
       FROM rule_products rp
       JOIN products p ON p.id = rp.product_id
       WHERE rp.rule_id = ?
@@ -27,17 +34,30 @@ export async function onRequestGet({ env, request }) {
     .bind(rule.id)
     .all();
 
-  const labeled = (products.results || []).map(p => ({
-    ...p,
-    stepLabel: (p.step === 1) ? "Stap 1 (hechting/basis)" : "Stap 2 (vullen/egaliseren)"
+  const products = (rows.results || []).map((p) => ({
+    step: p.step,
+    stepLabel: stepLabel(p.step),
+    brand: p.brand,
+    name: p.name,
+    code: p.code,
+    notes: p.notes,
+    url: p.url || null,
+    ccvProductId: p.ccvProductId || null,
   }));
 
   return json({
     substrate,
     situation,
     summary: rule.summary,
-    products: labeled
+    products,
   });
+}
+
+function stepLabel(step) {
+  if (step === 1) return "Stap 1 (hechting/basis)";
+  if (step === 2) return "Stap 2 (vullen/egaliseren)";
+  if (step === 3) return "Stap 3 (sealen/afwerking)";
+  return `Stap ${step}`;
 }
 
 function json(data, status = 200) {
@@ -45,7 +65,8 @@ function json(data, status = 200) {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store"
-    }
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+    },
   });
 }
