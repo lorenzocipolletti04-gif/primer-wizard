@@ -1,8 +1,8 @@
 // =====================
-// PRIMER WIZARD app.js (Complete UI v5: QuickView werkt + prijzen + 1 primaire selectie)
+// PRIMER WIZARD app.js (UI v6: Quick View zonder iframe (CSP-proof) + prijzen + 1 primaire selectie)
 // =====================
 
-console.log("Primer Wizard UI v5 loaded ✅");
+console.log("Primer Wizard UI v6 loaded ✅");
 
 // ===== Elements =====
 const wizardCard = document.getElementById("wizardCard");
@@ -28,8 +28,8 @@ const productList = document.getElementById("productList");
 const SHOP_ORIGIN = "https://www.lakopmaat.nl";
 const SHOP_BASE_URL = "https://www.lakopmaat.nl";
 
-// ===== Products (images + prijzen) =====
-// Let op: prijzen zijn hardcoded strings. Pas ze aan als je wil.
+// ===== Products (afbeeldingen + prijzen) =====
+// Let op: prijzen zijn hardcoded. Als je prijzen wijzigt op de site, moet je hier ook updaten.
 const PRODUCTS = {
   filler_1k: {
     key: "filler_1k",
@@ -142,12 +142,14 @@ let stepIndex = 0;
 let answers = {};
 let selectedProductIds = new Set();
 
+// Quick view state
+let quickViewProduct = null;
+
 // =====================
 // Boot
 // =====================
 injectUiStyles();
 ensureQuickViewModal();
-renderStep();
 
 // =====================
 // UI helpers
@@ -219,6 +221,7 @@ function renderStep() {
 
 function selectOption(stepId, value) {
   answers[stepId] = value;
+
   if (stepId === "substrate") delete answers.goal;
 
   if (stepIndex < steps.length - 1) {
@@ -226,6 +229,7 @@ function selectOption(stepId, value) {
     renderStep();
     return;
   }
+
   renderAdvice();
 }
 
@@ -249,7 +253,7 @@ function resultBack() {
 }
 
 // =====================
-// Advice engine (local)
+// Advice engine
 // =====================
 function buildAdvice(substrate, goal) {
   const out = { summary: "", products: [] };
@@ -266,6 +270,7 @@ function buildAdvice(substrate, goal) {
       ccvProductId: p.ccvProductId || "",
       image: p.image || "",
       price: p.price || "",
+      key: p.key || "",
     });
   };
 
@@ -324,9 +329,7 @@ function buildAdvice(substrate, goal) {
 }
 
 // =====================
-// Selection rules
-// primair (best/alt/fast) => max 1 tegelijk
-// optioneel/tip => extra toegestaan
+// Selection rules (1 primaire)
 // =====================
 function badgeType(label) {
   const s = String(label || "").toLowerCase();
@@ -342,7 +345,6 @@ function isPrimaryLabel(label) {
   return t === "best" || t === "alt" || t === "fast";
 }
 
-// Kies exact 1 primaire default: best > fast > alt
 function applyDefaultSelection(products) {
   normalizePrimarySelection(products);
   if (selectedProductIds.size > 0) return;
@@ -365,7 +367,6 @@ function normalizePrimarySelection(products) {
   const selectedPrimaries = primaryIds.filter((id) => selectedProductIds.has(id));
   if (selectedPrimaries.length <= 1) return;
 
-  // behoud er 1 op prioriteit: best > fast > alt
   const byId = new Map(products.map((p) => [String(p.ccvProductId || ""), p]));
   const scored = selectedPrimaries
     .map((id) => {
@@ -392,7 +393,7 @@ function deselectOtherPrimaries(products, keepId) {
 }
 
 // =====================
-// Render advice (cards + CTA)
+// Render advice
 // =====================
 function renderAdvice() {
   showResult();
@@ -425,6 +426,7 @@ function renderAdvice() {
   `;
 
   bindUpsellEvents(products);
+  syncCardSelections();
   updateOrderButton();
 }
 
@@ -447,14 +449,18 @@ function renderUpsellCard(p) {
     : `<div class="pw-upsell-img pw-upsell-img--placeholder" aria-hidden="true"></div>`;
 
   const priceHtml = p.price ? `<div class="pw-price">${escapeHtml(p.price)}</div>` : "";
-  const quickBtn = url ? `<button type="button" class="pw-quickbtn">Snel bekijken</button>` : "";
 
   return `
     <div class="pw-upsell-card ${selected ? "is-selected" : ""} ${t === "best" ? "is-best" : ""}"
          data-id="${escapeHtml(id)}"
          data-primary="${isPrimary ? "1" : "0"}"
-         data-url="${escapeHtml(url)}">
-
+         data-url="${escapeHtml(url)}"
+         data-name="${escapeHtml(p.name || "")}"
+         data-price="${escapeHtml(p.price || "")}"
+         data-img="${escapeHtml(toAbsoluteUrl(p.image || ""))}"
+         data-notes="${escapeHtml(p.notes || "")}"
+         data-badgelabel="${escapeHtml(p.stepLabel || "")}"
+         data-badgetype="${escapeHtml(t)}">
       ${img}
 
       <div class="pw-upsell-meta">
@@ -463,7 +469,7 @@ function renderUpsellCard(p) {
         ${priceHtml}
         ${p.notes ? `<div class="pw-upsell-notes">${escapeHtml(p.notes)}</div>` : ""}
         <div class="pw-actions">
-          ${quickBtn}
+          ${url ? `<button type="button" class="pw-quickbtn">Snel bekijken</button>` : ""}
         </div>
       </div>
 
@@ -477,22 +483,23 @@ function renderUpsellCard(p) {
 function bindUpsellEvents(products) {
   if (!productList) return;
 
-  // Event delegation: werkt altijd (ook na re-render)
   productList.onclick = (e) => {
     const t = e.target;
 
-    // Snel bekijken
+    // Snel bekijken (CSP-proof modal)
     const quickBtn = t?.closest?.(".pw-quickbtn");
     if (quickBtn) {
       e.preventDefault();
       e.stopPropagation();
       const card = quickBtn.closest(".pw-upsell-card");
-      const url = card?.getAttribute("data-url") || "";
-      if (url) openQuickView(url);
+      if (!card) return;
+
+      const product = extractProductFromCard(card);
+      openQuickView(product);
       return;
     }
 
-    // + / ✓ selectie
+    // + / ✓ selecteren
     const addBtn = t?.closest?.(".pw-upsell-add");
     if (addBtn) {
       e.preventDefault();
@@ -520,6 +527,20 @@ function bindUpsellEvents(products) {
 
   const orderBtn = productList.querySelector("#pwOrderBtn");
   if (orderBtn) orderBtn.onclick = () => bulkAddSelected(products);
+}
+
+function extractProductFromCard(card) {
+  const id = card.getAttribute("data-id") || "";
+  return {
+    id,
+    name: card.getAttribute("data-name") || "",
+    price: card.getAttribute("data-price") || "",
+    image: card.getAttribute("data-img") || "",
+    notes: card.getAttribute("data-notes") || "",
+    url: card.getAttribute("data-url") || "",
+    badgeLabel: card.getAttribute("data-badgelabel") || "",
+    badgeType: card.getAttribute("data-badgetype") || "default",
+  };
 }
 
 function syncCardSelections() {
@@ -561,7 +582,7 @@ function updateOrderButton() {
 }
 
 // =====================
-// Bulk add to cart (quantity altijd 1)
+// Bulk add to cart
 // =====================
 async function bulkAddSelected(products) {
   const btn = productList?.querySelector("#pwOrderBtn");
@@ -595,7 +616,7 @@ async function bulkAddSelected(products) {
 }
 
 // =====================
-// Quick view modal (iframe)
+// Quick view modal (zonder iframe)
 // =====================
 function ensureQuickViewModal() {
   if (document.getElementById("pwQuickView")) return;
@@ -610,9 +631,23 @@ function ensureQuickViewModal() {
         <div class="pw-qv__title">Snel bekijken</div>
         <button type="button" class="pw-qv__close" data-qv-close="1" aria-label="Sluiten">✕</button>
       </div>
-      <iframe class="pw-qv__frame" title="Snel bekijken" loading="lazy"></iframe>
-      <div class="pw-qv__bottom">
-        <a class="pw-qv__open" target="_blank" rel="noreferrer">Open in nieuw tabblad</a>
+
+      <div class="pw-qv__body">
+        <div class="pw-qv__media">
+          <img class="pw-qv__img" alt="" />
+        </div>
+
+        <div class="pw-qv__info">
+          <div class="pw-qv__badges"></div>
+          <div class="pw-qv__name"></div>
+          <div class="pw-qv__price"></div>
+          <div class="pw-qv__notes"></div>
+
+          <div class="pw-qv__actions">
+            <button type="button" class="pw-qv__add">Voeg toe</button>
+            <a class="pw-qv__open" target="_blank" rel="noreferrer">Open product</a>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -626,17 +661,57 @@ function ensureQuickViewModal() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeQuickView();
   });
+
+  // button actions
+  const addBtn = el.querySelector(".pw-qv__add");
+  addBtn.addEventListener("click", () => {
+    if (!quickViewProduct?.id) return;
+    // voeg direct toe via CCV
+    window.parent.postMessage(
+      {
+        type: "LOM_ADD_TO_CART",
+        payload: {
+          productId: String(quickViewProduct.id),
+          quantity: 1,
+          shopUrl: quickViewProduct.url || "",
+        },
+      },
+      SHOP_ORIGIN
+    );
+    addBtn.textContent = "Toegevoegd ✓";
+    setTimeout(() => (addBtn.textContent = "Voeg toe"), 900);
+  });
 }
 
-function openQuickView(url) {
+function openQuickView(product) {
   const wrap = document.getElementById("pwQuickView");
   if (!wrap) return;
 
-  const frame = wrap.querySelector(".pw-qv__frame");
+  quickViewProduct = product;
+
+  const img = wrap.querySelector(".pw-qv__img");
+  const badges = wrap.querySelector(".pw-qv__badges");
+  const name = wrap.querySelector(".pw-qv__name");
+  const price = wrap.querySelector(".pw-qv__price");
+  const notes = wrap.querySelector(".pw-qv__notes");
   const openA = wrap.querySelector(".pw-qv__open");
 
-  if (frame) frame.src = url;
-  if (openA) openA.href = url;
+  if (img) {
+    img.src = product.image || "";
+    img.alt = product.name || "";
+  }
+
+  if (badges) {
+    const b = product.badgeLabel
+      ? `<span class="pw-badge pw-badge--${escapeHtml(product.badgeType)}">${escapeHtml(product.badgeLabel)}</span>`
+      : "";
+    badges.innerHTML = b;
+  }
+
+  if (name) name.textContent = product.name || "";
+  if (price) price.textContent = product.price || "";
+  if (notes) notes.textContent = product.notes || "";
+  if (openA) openA.href = product.url || "";
 
   wrap.classList.remove("hidden");
   document.documentElement.classList.add("pw-noscroll");
@@ -647,12 +722,10 @@ function closeQuickView() {
   const wrap = document.getElementById("pwQuickView");
   if (!wrap) return;
 
-  const frame = wrap.querySelector(".pw-qv__frame");
-  if (frame) frame.src = "about:blank";
-
   wrap.classList.add("hidden");
   document.documentElement.classList.remove("pw-noscroll");
   document.body.classList.remove("pw-noscroll");
+  quickViewProduct = null;
 }
 
 // =====================
@@ -664,7 +737,6 @@ function toAbsoluteUrl(pathOrUrl) {
   if (!s.startsWith("/")) return SHOP_BASE_URL + "/" + s;
   return SHOP_BASE_URL + s;
 }
-
 function escapeHtml(s) {
   return String(s)
     .replaceAll("&", "&amp;")
@@ -675,12 +747,13 @@ function escapeHtml(s) {
 }
 
 // =====================
-// Styles
+// Styles (embedded)
 // =====================
 function injectUiStyles() {
-  if (document.getElementById("pwUiV5Styles")) return;
+  if (document.getElementById("pwUiV6Styles")) return;
 
   const css = `
+  /* Panel - mobiel breder */
   .pw-panel{
     background:#fff;
     border:1px solid #e9edf3;
@@ -788,11 +861,7 @@ function injectUiStyles() {
     margin:0 0 8px;
   }
 
-  .pw-actions{
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
+  .pw-actions{ display:flex; align-items:center; gap:8px; }
 
   .pw-quickbtn{
     border:1px solid #e5eaf3;
@@ -818,10 +887,7 @@ function injectUiStyles() {
     display:grid;
     place-items:center;
   }
-  .pw-upsell-add:disabled{
-    opacity:.45;
-    cursor:not-allowed;
-  }
+  .pw-upsell-add:disabled{ opacity:.45; cursor:not-allowed; }
   .pw-upsell-card.is-selected .pw-upsell-add{
     background:#e8eef7;
     color:#111;
@@ -843,12 +909,8 @@ function injectUiStyles() {
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:10px;
   }
-  .pw-order-button.is-disabled{
-    opacity:.55;
-    cursor:not-allowed;
-  }
+  .pw-order-button.is-disabled{ opacity:.55; cursor:not-allowed; }
 
   .pw-empty{
     border:1px dashed #dbe4f2;
@@ -860,7 +922,7 @@ function injectUiStyles() {
   .pw-empty__title{ font-weight:900; color:#0f172a; margin-bottom:6px; }
   .pw-empty__text{ font-size:13px; }
 
-  /* Quick View modal */
+  /* Quick View modal (no iframe) */
   .pw-noscroll{ overflow:hidden !important; }
 
   .pw-qv{
@@ -883,14 +945,11 @@ function injectUiStyles() {
 
   .pw-qv__panel{
     position:relative;
-    width:min(980px, 96vw);
-    height:min(78vh, 720px);
+    width:min(860px, 96vw);
     background:#fff;
     border-radius:18px;
     box-shadow: 0 30px 80px rgba(0,0,0,.25);
     overflow:hidden;
-    display:flex;
-    flex-direction:column;
   }
 
   .pw-qv__top{
@@ -900,10 +959,7 @@ function injectUiStyles() {
     padding:12px 14px;
     border-bottom:1px solid #eef2f7;
   }
-  .pw-qv__title{
-    font-weight:900;
-    color:#0f172a;
-  }
+  .pw-qv__title{ font-weight:900; color:#0f172a; }
   .pw-qv__close{
     width:36px;height:36px;
     border-radius:12px;
@@ -914,38 +970,70 @@ function injectUiStyles() {
   }
   .pw-qv__close:hover{ background:#f6f8fc; }
 
-  .pw-qv__frame{
-    width:100%;
-    height:100%;
-    border:0;
-    background:#fff;
+  .pw-qv__body{
+    display:grid;
+    grid-template-columns: 280px 1fr;
+    gap:14px;
+    padding:14px;
   }
 
-  .pw-qv__bottom{
-    padding:10px 14px;
-    border-top:1px solid #eef2f7;
+  .pw-qv__media{
+    border:1px solid #eef2f7;
+    border-radius:16px;
+    background:#f8fafc;
     display:flex;
-    justify-content:flex-end;
+    align-items:center;
+    justify-content:center;
+    padding:14px;
+  }
+  .pw-qv__img{
+    width:100%;
+    height:auto;
+    max-height:280px;
+    object-fit:contain;
+    display:block;
+  }
+
+  .pw-qv__badges{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .pw-qv__name{ font-weight:950; font-size:16px; color:#0f172a; margin-bottom:8px; }
+  .pw-qv__price{ font-weight:950; font-size:15px; color:#0f172a; margin-bottom:10px; }
+  .pw-qv__notes{ color:#64748b; font-size:13px; line-height:1.4; }
+
+  .pw-qv__actions{
+    margin-top:14px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .pw-qv__add{
+    border:0;
+    background:#22c55e;
+    color:#fff;
+    font-weight:950;
+    padding:10px 14px;
+    border-radius:14px;
+    cursor:pointer;
   }
   .pw-qv__open{
-    font-weight:900;
-    font-size:12px;
+    font-weight:950;
+    font-size:13px;
     color:#2563eb;
     text-decoration:none;
+    padding:10px 2px;
   }
   .pw-qv__open:hover{ text-decoration:underline; }
 
-  @media (max-width: 520px){
-    .pw-qv__panel{
-      width: 96vw;
-      height: 86vh;
-      border-radius:16px;
+  @media (max-width: 620px){
+    .pw-qv__body{
+      grid-template-columns: 1fr;
     }
+    .pw-qv__img{ max-height:220px; }
   }
   `;
 
   const style = document.createElement("style");
-  style.id = "pwUiV5Styles";
+  style.id = "pwUiV6Styles";
   style.textContent = css;
   document.head.appendChild(style);
 }
@@ -957,3 +1045,6 @@ backBtn?.addEventListener("click", goBack);
 resetBtn?.addEventListener("click", resetAll);
 resultBackBtn?.addEventListener("click", resultBack);
 startOverBtn?.addEventListener("click", resetAll);
+
+// start
+renderStep();
