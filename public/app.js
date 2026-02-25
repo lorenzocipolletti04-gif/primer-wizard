@@ -1,6 +1,8 @@
 // =====================
-// PRIMER WIZARD app.js (UI v2: cards zoals foto 2/3 + 1 groene CTA, geen qty/help)
+// PRIMER WIZARD app.js (UI v4: Snel bekijken modal + prijzen + 1 primaire selectie)
 // =====================
+
+console.log("Primer Wizard UI v4 loaded ✅");
 
 // ===== Elements =====
 const wizardCard = document.getElementById("wizardCard");
@@ -26,16 +28,17 @@ const productList = document.getElementById("productList");
 const SHOP_ORIGIN = "https://www.lakopmaat.nl";
 const SHOP_BASE_URL = "https://www.lakopmaat.nl";
 
-// ===== Products (jouw echte URL's + ID's) =====
+// ===== Products (met afbeeldingen + prijzen) =====
 const PRODUCTS = {
   filler_1k: {
     key: "filler_1k",
-    name: "CS 1K Hoogvullende primer",
+    name: "CS 1K Hoog vullende primer",
     brand: "CS",
     code: "151.522",
     url: "/nl/CS-1K-Hoog-vullende-primer",
     ccvProductId: "900611573",
     image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358538274.png",
+    price: "€ 21,49",
   },
   plastic: {
     key: "plastic",
@@ -45,6 +48,7 @@ const PRODUCTS = {
     url: "/nl/CS-Plastic-Primer-Transparant-400ml",
     ccvProductId: "900611528",
     image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358537821.png",
+    price: "€ 12,17",
   },
   epoxy_2k: {
     key: "epoxy_2k",
@@ -54,6 +58,7 @@ const PRODUCTS = {
     url: "/nl/CS-2k-Epoxy-Fill-Primer",
     ccvProductId: "900611519",
     image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358537773.png",
+    price: "€ 32,50",
   },
   epoxy_1k: {
     key: "epoxy_1k",
@@ -63,6 +68,7 @@ const PRODUCTS = {
     url: "/nl/CS-1K-Epoxy-Primer-400ml",
     ccvProductId: "900611507",
     image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358537689.png",
+    price: "€ 15,20",
   },
   etch: {
     key: "etch",
@@ -72,6 +78,7 @@ const PRODUCTS = {
     url: "/nl/Finixa-Etch-primer-grijs-400-ml",
     ccvProductId: "900588323",
     image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358424376.png",
+    price: "€ 13,99",
   },
   zinc: {
     key: "zinc",
@@ -81,17 +88,20 @@ const PRODUCTS = {
     url: "/nl/Finixa-Zinkspray-400-ml",
     ccvProductId: "900589553",
     image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358433403.png",
+    price: "€ 12,49",
   },
   gloves: {
     key: "gloves",
-    name: "Eurogloves Soft Nitrile",
+    name: "Eurogloves Soft Nitrile - 100 stuks",
     brand: "Eurogloves",
     code: "",
     url: "/nl/Eurogloves-Soft-Nitrile",
     ccvProductId: "900590462",
     image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358441479.jpg",
+    price: "€ 15,25",
   },
 };
+
 // ===== Steps =====
 const steps = [
   {
@@ -132,9 +142,10 @@ let answers = {};
 let selectedProductIds = new Set();
 
 // =====================
-// Inject CSS (zodat jij 1 bestand hebt)
+// Styles + modal container
 // =====================
 injectUiStyles();
+ensureQuickViewModal();
 
 // =====================
 // UI helpers
@@ -197,7 +208,6 @@ function renderStep() {
     btn.className = "optionBtn";
     btn.type = "button";
     btn.textContent = opt.label;
-
     if (selected === opt.value) btn.classList.add("active");
 
     btn.addEventListener("click", () => selectOption(step.id, opt.value));
@@ -208,9 +218,7 @@ function renderStep() {
 function selectOption(stepId, value) {
   answers[stepId] = value;
 
-  if (stepId === "substrate") {
-    delete answers.goal;
-  }
+  if (stepId === "substrate") delete answers.goal;
 
   if (stepIndex < steps.length - 1) {
     stepIndex += 1;
@@ -231,6 +239,7 @@ function resetAll() {
   stepIndex = 0;
   answers = {};
   selectedProductIds = new Set();
+  closeQuickView();
   renderStep();
 }
 
@@ -256,6 +265,7 @@ function buildAdvice(substrate, goal) {
       url: p.url || "",
       ccvProductId: p.ccvProductId || "",
       image: p.image || "",
+      price: p.price || "",
     });
   };
 
@@ -313,18 +323,79 @@ function buildAdvice(substrate, goal) {
   return out;
 }
 
-// default selectie regels
-function shouldDefaultSelect(stepLabel) {
-  const s = String(stepLabel || "").toLowerCase();
-  if (s.includes("beste")) return true;
-  if (s.includes("snelle")) return true;
-  if (s.includes("alternatief")) return true;
-  if (s.includes("tip") || s.includes("optioneel")) return false;
-  return true;
+// =====================
+// Selection rules
+// - primair = best / alt / fast  => maar 1 tegelijk (radio)
+// - optioneel/tip => extra toegestaan
+// =====================
+function badgeType(label) {
+  const s = String(label || "").toLowerCase();
+  if (s.includes("beste")) return "best";
+  if (s.includes("alternatief")) return "alt";
+  if (s.includes("snelle")) return "fast";
+  if (s.includes("optioneel")) return "opt";
+  if (s.includes("tip")) return "tip";
+  return "default";
+}
+
+function isPrimaryLabel(label) {
+  const t = badgeType(label);
+  return t === "best" || t === "alt" || t === "fast";
+}
+
+// Kies exact 1 primaire default: best > fast > alt
+function applyDefaultSelection(products) {
+  // als user al iets geselecteerd had: fix eventuele dubbele primaire selectie
+  normalizePrimarySelection(products);
+
+  if (selectedProductIds.size > 0) return;
+
+  const primaries = products.filter((p) => p.ccvProductId && isPrimaryLabel(p.stepLabel));
+  const pick =
+    primaries.find((p) => badgeType(p.stepLabel) === "best") ||
+    primaries.find((p) => badgeType(p.stepLabel) === "fast") ||
+    primaries.find((p) => badgeType(p.stepLabel) === "alt") ||
+    null;
+
+  if (pick?.ccvProductId) selectedProductIds.add(String(pick.ccvProductId));
+}
+
+function normalizePrimarySelection(products) {
+  const primaryIds = products
+    .filter((p) => p.ccvProductId && isPrimaryLabel(p.stepLabel))
+    .map((p) => String(p.ccvProductId));
+
+  const selectedPrimaries = primaryIds.filter((id) => selectedProductIds.has(id));
+  if (selectedPrimaries.length <= 1) return;
+
+  // houd er 1 over op prioriteit: best > fast > alt
+  const byId = new Map(products.map((p) => [String(p.ccvProductId || ""), p]));
+  const scored = selectedPrimaries
+    .map((id) => {
+      const p = byId.get(id);
+      const t = badgeType(p?.stepLabel);
+      const score = t === "best" ? 3 : t === "fast" ? 2 : t === "alt" ? 1 : 0;
+      return { id, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const keep = scored[0]?.id;
+  selectedPrimaries.forEach((id) => {
+    if (id !== keep) selectedProductIds.delete(id);
+  });
+}
+
+function deselectOtherPrimaries(products, keepId) {
+  products.forEach((p) => {
+    if (!p.ccvProductId) return;
+    const id = String(p.ccvProductId);
+    if (id === keepId) return;
+    if (isPrimaryLabel(p.stepLabel)) selectedProductIds.delete(id);
+  });
 }
 
 // =====================
-// Render advice (cards + 1 CTA)
+// Render advice (cards + CTA)
 // =====================
 function renderAdvice() {
   showResult();
@@ -336,14 +407,7 @@ function renderAdvice() {
 
   const products = data.products || [];
 
-  // init defaults (alleen als nog niets gekozen)
-  if (selectedProductIds.size === 0) {
-    products.forEach((p) => {
-      if (p.ccvProductId && shouldDefaultSelect(p.stepLabel)) {
-        selectedProductIds.add(String(p.ccvProductId));
-      }
-    });
-  }
+  applyDefaultSelection(products);
 
   const cardsHtml = products.map(renderUpsellCard).join("");
 
@@ -371,26 +435,43 @@ function renderUpsellCard(p) {
   const id = p.ccvProductId ? String(p.ccvProductId) : "";
   const selected = id && selectedProductIds.has(id);
   const url = p.url ? toAbsoluteUrl(p.url) : "";
+  const t = badgeType(p.stepLabel);
+  const isPrimary = isPrimaryLabel(p.stepLabel);
+
+  const badgeMain = p.stepLabel
+    ? `<span class="pw-badge pw-badge--${t}">${escapeHtml(p.stepLabel)}</span>`
+    : "";
 
   const badges = [
-    p.stepLabel ? `<span class="pw-badge">${escapeHtml(p.stepLabel)}</span>` : "",
-    p.brand ? `<span class="pw-badge">${escapeHtml(p.brand)}</span>` : "",
-    p.code ? `<span class="pw-badge">${escapeHtml(p.code)}</span>` : "",
+    badgeMain,
+    p.brand ? `<span class="pw-badge pw-badge--meta">${escapeHtml(p.brand)}</span>` : "",
+    p.code ? `<span class="pw-badge pw-badge--meta">${escapeHtml(p.code)}</span>` : "",
   ].join("");
 
   const img = p.image
     ? `<img class="pw-upsell-img" src="${escapeHtml(toAbsoluteUrl(p.image))}" alt="" loading="lazy">`
     : `<div class="pw-upsell-img pw-upsell-img--placeholder" aria-hidden="true"></div>`;
 
+  const priceHtml = p.price ? `<div class="pw-price">${escapeHtml(p.price)}</div>` : "";
+
+  // snel bekijken knop (klein)
+  const quickBtn = url
+    ? `<button type="button" class="pw-quickbtn" data-quick="${escapeHtml(url)}">Snel bekijken</button>`
+    : "";
+
   return `
-    <div class="pw-upsell-card ${selected ? "is-selected" : ""}" data-id="${escapeHtml(id)}">
+    <div class="pw-upsell-card ${selected ? "is-selected" : ""} ${t === "best" ? "is-best" : ""}" 
+         data-id="${escapeHtml(id)}" data-primary="${isPrimary ? "1" : "0"}">
       ${img}
 
       <div class="pw-upsell-meta">
         <div class="pw-upsell-badges">${badges}</div>
         <div class="pw-upsell-name" title="${escapeHtml(p.name || "")}">${escapeHtml(p.name || "")}</div>
+        ${priceHtml}
         ${p.notes ? `<div class="pw-upsell-notes">${escapeHtml(p.notes)}</div>` : ""}
-        ${url ? `<a class="pw-viewlink" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Bekijk product</a>` : ""}
+        <div class="pw-actions">
+          ${quickBtn}
+        </div>
       </div>
 
       <button type="button" class="pw-upsell-add" ${id ? "" : "disabled"} aria-label="Toevoegen">
@@ -401,30 +482,70 @@ function renderUpsellCard(p) {
 }
 
 function bindUpsellEvents(products) {
+  // + / ✓ buttons
   const addBtns = productList.querySelectorAll(".pw-upsell-add");
-
   addBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       const card = btn.closest(".pw-upsell-card");
       const id = card?.getAttribute("data-id") || "";
       if (!id) return;
 
+      const isPrimary = card?.getAttribute("data-primary") === "1";
+
       if (selectedProductIds.has(id)) {
         selectedProductIds.delete(id);
         card.classList.remove("is-selected");
         btn.textContent = "+";
       } else {
+        // als dit primair is: eerst alle andere primaire deselecten
+        if (isPrimary) deselectOtherPrimaries(products, id);
+
         selectedProductIds.add(id);
         card.classList.add("is-selected");
         btn.textContent = "✓";
       }
 
+      // zorg altijd dat primair max 1 blijft
+      normalizePrimarySelection(products);
+
+      // update UI van andere cards (primair radio effect)
+      syncCardSelections();
       updateOrderButton();
     });
   });
 
+  // snel bekijken
+  const quickBtns = productList.querySelectorAll(".pw-quickbtn");
+  quickBtns.forEach((b) => {
+    b.addEventListener("click", () => {
+      const url = b.getAttribute("data-quick");
+      if (!url) return;
+      openQuickView(toAbsoluteUrl(url));
+    });
+  });
+
+  // order
   const orderBtn = productList.querySelector("#pwOrderBtn");
   if (orderBtn) orderBtn.addEventListener("click", () => bulkAddSelected(products));
+}
+
+function syncCardSelections() {
+  if (!productList) return;
+  const cards = productList.querySelectorAll(".pw-upsell-card");
+  cards.forEach((card) => {
+    const id = card.getAttribute("data-id") || "";
+    const selected = id && selectedProductIds.has(id);
+    const btn = card.querySelector(".pw-upsell-add");
+    if (!btn) return;
+
+    if (selected) {
+      card.classList.add("is-selected");
+      btn.textContent = "✓";
+    } else {
+      card.classList.remove("is-selected");
+      btn.textContent = "+";
+    }
+  });
 }
 
 function updateOrderButton() {
@@ -443,8 +564,7 @@ function updateOrderButton() {
   btn.disabled = false;
   btn.classList.remove("is-disabled");
 
-  if (count === 1) btn.textContent = "Bestellen";
-  else btn.textContent = `${count} producten bestellen`;
+  btn.textContent = count === 1 ? "Bestellen" : `${count} producten bestellen`;
 }
 
 // =====================
@@ -482,6 +602,68 @@ async function bulkAddSelected(products) {
 }
 
 // =====================
+// Quick view modal
+// =====================
+function ensureQuickViewModal() {
+  if (document.getElementById("pwQuickView")) return;
+
+  const el = document.createElement("div");
+  el.id = "pwQuickView";
+  el.className = "pw-qv hidden";
+  el.innerHTML = `
+    <div class="pw-qv__backdrop" data-qv-close="1"></div>
+    <div class="pw-qv__panel" role="dialog" aria-modal="true">
+      <div class="pw-qv__top">
+        <div class="pw-qv__title">Snel bekijken</div>
+        <button type="button" class="pw-qv__close" data-qv-close="1" aria-label="Sluiten">✕</button>
+      </div>
+      <iframe class="pw-qv__frame" title="Snel bekijken" loading="lazy"></iframe>
+      <div class="pw-qv__bottom">
+        <a class="pw-qv__open" target="_blank" rel="noreferrer">Open in nieuw tabblad</a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(el);
+
+  el.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t && t.getAttribute && t.getAttribute("data-qv-close") === "1") {
+      closeQuickView();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeQuickView();
+  });
+}
+
+function openQuickView(url) {
+  const wrap = document.getElementById("pwQuickView");
+  if (!wrap) return;
+
+  const frame = wrap.querySelector(".pw-qv__frame");
+  const openA = wrap.querySelector(".pw-qv__open");
+  if (frame) frame.src = url;
+  if (openA) openA.href = url;
+
+  wrap.classList.remove("hidden");
+  document.documentElement.classList.add("pw-noscroll");
+  document.body.classList.add("pw-noscroll");
+}
+
+function closeQuickView() {
+  const wrap = document.getElementById("pwQuickView");
+  if (!wrap) return;
+
+  const frame = wrap.querySelector(".pw-qv__frame");
+  if (frame) frame.src = "about:blank";
+
+  wrap.classList.add("hidden");
+  document.documentElement.classList.remove("pw-noscroll");
+  document.body.classList.remove("pw-noscroll");
+}
+
+// =====================
 // Utils
 // =====================
 function toAbsoluteUrl(pathOrUrl) {
@@ -504,81 +686,140 @@ function escapeHtml(s) {
 // Styles (embedded)
 // =====================
 function injectUiStyles() {
-  if (document.getElementById("pwUiV2Styles")) return;
+  if (document.getElementById("pwUiV4Styles")) return;
 
   const css = `
+  /* Panel - op mobiel breder (rand-tot-rand gevoel) */
   .pw-panel{
     background:#fff;
     border:1px solid #e9edf3;
     border-radius:16px;
     padding:18px;
   }
+  @media (max-width: 520px){
+    .pw-panel{
+      margin-left:-12px;
+      margin-right:-12px;
+      border-radius:18px;
+    }
+  }
+
   .pw-section-title{
-    font-weight:800;
+    font-weight:900;
     font-size:16px;
     margin:0 0 12px;
     color:#0f172a;
   }
+
   .pw-upsell-list{ display:grid; gap:12px; margin-top:10px; }
+
   .pw-upsell-card{
     display:grid;
-    grid-template-columns:56px 1fr 44px;
+    grid-template-columns:64px 1fr 44px;
     align-items:center;
-    gap:12px;
-    border:1px solid #eef2f7;
-    border-radius:14px;
-    padding:12px;
+    gap:14px;
+    border:1px solid #e6edf7;
+    border-radius:16px;
+    padding:14px;
     background:#fff;
-    box-shadow:0 6px 18px rgba(16,24,40,.06);
+    box-shadow:0 8px 22px rgba(16,24,40,.06);
   }
   .pw-upsell-card.is-selected{
     border-color:#d7e2f2;
-    box-shadow:0 10px 22px rgba(16,24,40,.08);
+    box-shadow:0 12px 26px rgba(16,24,40,.10);
   }
+  .pw-upsell-card.is-best{
+    border-color: rgba(34,197,94,.35);
+  }
+
   .pw-upsell-img{
-    width:56px; height:56px; border-radius:12px;
+    width:64px; height:64px; border-radius:14px;
     background:#f6f7fb;
     border:1px solid #eef2f7;
     object-fit:contain;
+    display:block;
   }
-  .pw-upsell-img--placeholder{ display:block; }
+
   .pw-upsell-meta{ min-width:0; }
-  .pw-upsell-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+
+  .pw-upsell-badges{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:8px;
+  }
+
+  /* Badges duidelijker */
   .pw-badge{
-    font-size:12px;
-    padding:4px 10px;
+    font-size:11px;
+    font-weight:900;
+    padding:5px 10px;
     border-radius:999px;
+    letter-spacing:.4px;
+    text-transform:uppercase;
+    line-height:1;
+    white-space:nowrap;
+  }
+  .pw-badge--best{ background:#dcfce7; color:#166534; }
+  .pw-badge--alt{ background:#dbeafe; color:#1e40af; }
+  .pw-badge--fast{ background:#ede9fe; color:#5b21b6; }
+  .pw-badge--opt{ background:#f1f5f9; color:#475569; }
+  .pw-badge--tip{ background:#fff7ed; color:#9a3412; }
+  .pw-badge--meta{
+    background:#ffffff;
     border:1px solid #e5eaf3;
     color:#0f172a;
-    background:#fff;
-    white-space:nowrap;
-  }
-  .pw-upsell-name{
+    text-transform:none;
+    letter-spacing:0;
     font-weight:800;
-    font-size:13px;
+  }
+
+  .pw-upsell-name{
+    font-weight:900;
+    font-size:13.5px;
     line-height:1.2;
     margin:0 0 6px;
-    white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
+    white-space:nowrap;
     color:#0f172a;
   }
-  .pw-upsell-notes{
-    font-size:12px;
-    color:#64748b;
+
+  .pw-price{
+    font-weight:900;
+    font-size:13px;
+    color:#0f172a;
     margin:0 0 6px;
   }
-  .pw-viewlink{
-    font-size:12px;
-    font-weight:700;
-    color:#2563eb;
-    text-decoration:none;
+
+  .pw-upsell-notes{
+    font-size:12.5px;
+    color:#64748b;
+    margin:0 0 8px;
   }
-  .pw-viewlink:hover{ text-decoration:underline; }
+
+  .pw-actions{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+
+  /* Snel bekijken: klein en netjes */
+  .pw-quickbtn{
+    border:1px solid #e5eaf3;
+    background:#fff;
+    color:#0f172a;
+    font-weight:900;
+    font-size:12px;
+    padding:7px 10px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .pw-quickbtn:hover{ background:#f6f8fc; }
 
   .pw-upsell-add{
     width:40px; height:40px;
-    border-radius:10px;
+    border-radius:12px;
     border:0;
     background:#111;
     color:#fff;
@@ -599,14 +840,16 @@ function injectUiStyles() {
   }
 
   .pw-orderbar{ margin-top:14px; }
+
   .pw-order-button{
     width:100%;
-    height:44px;
+    height:46px;
     border:0;
-    border-radius:12px;
+    border-radius:14px;
     background:#22c55e;
     color:#fff;
     font-weight:900;
+    font-size:14px;
     cursor:pointer;
     display:flex;
     align-items:center;
@@ -625,12 +868,95 @@ function injectUiStyles() {
     color:#64748b;
     background:#fff;
   }
-  .pw-empty__title{ font-weight:800; color:#0f172a; margin-bottom:6px; }
+  .pw-empty__title{ font-weight:900; color:#0f172a; margin-bottom:6px; }
   .pw-empty__text{ font-size:13px; }
+
+  /* Quick View modal */
+  .pw-noscroll{ overflow:hidden !important; }
+
+  .pw-qv{
+    position:fixed;
+    inset:0;
+    z-index:9999;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+  }
+  .pw-qv.hidden{ display:none; }
+
+  .pw-qv__backdrop{
+    position:absolute;
+    inset:0;
+    background:rgba(15,23,42,.55);
+    backdrop-filter: blur(2px);
+  }
+
+  .pw-qv__panel{
+    position:relative;
+    width:min(980px, 96vw);
+    height:min(78vh, 720px);
+    background:#fff;
+    border-radius:18px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.25);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .pw-qv__top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 14px;
+    border-bottom:1px solid #eef2f7;
+  }
+  .pw-qv__title{
+    font-weight:900;
+    color:#0f172a;
+  }
+  .pw-qv__close{
+    width:36px;height:36px;
+    border-radius:12px;
+    border:1px solid #e5eaf3;
+    background:#fff;
+    cursor:pointer;
+    font-weight:900;
+  }
+  .pw-qv__close:hover{ background:#f6f8fc; }
+
+  .pw-qv__frame{
+    width:100%;
+    height:100%;
+    border:0;
+    background:#fff;
+  }
+
+  .pw-qv__bottom{
+    padding:10px 14px;
+    border-top:1px solid #eef2f7;
+    display:flex;
+    justify-content:flex-end;
+  }
+  .pw-qv__open{
+    font-weight:900;
+    font-size:12px;
+    color:#2563eb;
+    text-decoration:none;
+  }
+  .pw-qv__open:hover{ text-decoration:underline; }
+
+  @media (max-width: 520px){
+    .pw-qv__panel{
+      width: 96vw;
+      height: 86vh;
+      border-radius:16px;
+    }
+  }
   `;
 
   const style = document.createElement("style");
-  style.id = "pwUiV2Styles";
+  style.id = "pwUiV4Styles";
   style.textContent = css;
   document.head.appendChild(style);
 }
