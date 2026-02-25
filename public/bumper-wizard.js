@@ -410,7 +410,7 @@ function bindEvents() {
 
     // voeg 1 voor 1 toe (stabiel)
     for (let i = 0; i < items.length; i++) {
-      window.parent.postMessage(
+      window.postMessage(
         {
           type: "LOM_ADD_TO_CART",
           payload: {
