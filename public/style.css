@@ -4,13 +4,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const SHOP_ORIGIN = "https://www.lakopmaat.nl";
   const SHOP_BASE_URL = "https://www.lakopmaat.nl";
 
-  // Jouw CCV attribute velden (zoals je doorgaf)
+  // Jouw CCV attribute velden
   const ATTR_COLOR = "product_attribute[6901766]";
   const ATTR_BRAND = "product_attribute[6901769]";
 
   // ========= PRODUCTEN =========
   const PRODUCTS = {
-    // Kleine schade (op kleur) - jouw ingevulde gegevens
+    // Kleine schade (op kleur)
     lakstift_kleur: {
       key: "lakstift_kleur",
       name: "Lakopmaat Lakstift op Kleur",
@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
       image: "",
       notes: "Voor kleine beschadigingen, steenslag en randjes.",
       defaultQty: 1,
-      needsColorInfo: true, // <- merk + kleurcode verplicht
+      needsColorInfo: true,
     },
 
     // Extra optie bij kleine schade
@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
       badge: "Afwerking",
       price: "",
       url: "/nl/Motip-Blanke-Lakstift-Hoogglans",
-      ccvProductId: "900456953", // TODO: vul hier het product id in (die had je nog niet meegegeven)
+      ccvProductId: "900456953",
       image: "",
       notes: "Extra glans + bescherming over de lakstift (aanrader).",
       defaultQty: 1,
@@ -236,7 +236,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function step1() {
     const smallSelected = state.damageSize === "small";
-
     return `
       <div class="bw-h">Stap 1 — Hoe groot is de schade?</div>
 
@@ -262,7 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
 
           <div class="bw-products" style="margin-top:10px">
-            ${productCard(PRODUCTS.lakstift_blanke, { showAddEvenIfNoId: true })}
+            ${productCard(PRODUCTS.lakstift_blanke)}
           </div>
 
           <div class="bw-note">
@@ -303,7 +302,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function step3() {
     const needsColor = selectionNeedsColorInfo(getSelectedProducts());
-
     return `
       <div class="bw-h">Stap 3 — Kleur</div>
       <div class="bw-sub2">${needsColor ? "Verplicht voor lakstift op kleur." : "Optioneel, maar handig om alvast klaar te zetten."}</div>
@@ -335,20 +333,16 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   }
 
-  function productCard(p, opts = {}) {
+  function productCard(p) {
     const id = String(p.ccvProductId || "");
     const selected = id && state.selectedIds.has(id);
-
-    // showAddEvenIfNoId: we tonen de + knop ook als id nog leeg is, maar dan disabled
-    const allowAdd = opts.showAddEvenIfNoId ? true : !!id;
-    const addDisabled = allowAdd && !id ? "disabled" : "";
 
     const img = p.image
       ? `<img class="bw-img" src="${escapeHtml(toAbs(p.image))}" alt="" loading="lazy">`
       : `<div class="bw-img bw-img--ph"></div>`;
 
     return `
-      <div class="bw-prod ${selected ? "is-selected" : ""}" data-id="${escapeHtml(id)}" data-key="${escapeHtml(p.key || "")}">
+      <div class="bw-prod ${selected ? "is-selected" : ""}" data-id="${escapeHtml(id)}">
         ${img}
         <div class="bw-prodMid">
           <div class="bw-badges">
@@ -357,7 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <div class="bw-prodName">${escapeHtml(p.name || "")}</div>
           ${p.notes ? `<div class="bw-prodNotes">${escapeHtml(p.notes)}</div>` : ""}
-          ${!id && opts.showAddEvenIfNoId ? `<div class="bw-warn">⚠️ Vul nog productId in voor toevoegen</div>` : ""}
         </div>
 
         <div class="bw-prodRight">
@@ -366,7 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
               ? `<a class="bw-link" href="${escapeHtml(toAbs(p.url))}" target="_blank" rel="noreferrer">Open</a>`
               : ""
           }
-          <button type="button" class="bw-add" ${addDisabled}>${selected ? "✓" : "+"}</button>
+          <button type="button" class="bw-add">${selected ? "✓" : "+"}</button>
         </div>
       </div>
     `;
@@ -380,33 +373,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ========= Events =========
   function bind() {
-    // step1 choice
     mount.querySelectorAll("[data-size]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const size = btn.getAttribute("data-size");
         state.damageSize = size;
 
-        // reset selection, auto-select defaults
         state.selectedIds.clear();
-
         if (size === "small") {
-          autoSelect(PRODUCTS.lakstift_kleur); // <- jouw wens
-          // blanke lakstift NIET standaard, user kiest
+          autoSelect(PRODUCTS.lakstift_kleur);
         } else {
           autoSelect(PRODUCTS.spuitbus_kleur);
           autoSelect(PRODUCTS.blanke_lak);
         }
-
         render();
       });
     });
 
-    // toggle products
     mount.querySelectorAll(".bw-add").forEach((b) => {
       b.addEventListener("click", () => {
         const prod = b.closest(".bw-prod");
         const id = prod?.getAttribute("data-id") || "";
-        if (!id) return; // id is verplicht om te selecteren/toe te voegen
+        if (!id) return;
 
         if (state.selectedIds.has(id)) state.selectedIds.delete(id);
         else state.selectedIds.add(id);
@@ -415,13 +402,11 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    // inputs
     const brand = mount.querySelector("#bwBrand");
     const color = mount.querySelector("#bwColor");
     if (brand) brand.addEventListener("input", (e) => (state.carBrand = e.target.value || ""));
     if (color) color.addEventListener("input", (e) => (state.colorCode = e.target.value || ""));
 
-    // nav
     mount.querySelector("#bwBack")?.addEventListener("click", () => {
       if (state.step > 1) state.step -= 1;
       render();
@@ -449,7 +434,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // step3 validate if needed
       const items = getSelectedProducts();
       if (selectionNeedsColorInfo(items) && !isColorInfoValid()) {
         pulse(mount.querySelector(".bw-form"));
@@ -460,7 +444,6 @@ document.addEventListener("DOMContentLoaded", () => {
       pulse(mount.querySelector(".bw-sideCard"));
     });
 
-    // add all
     mount.querySelector("#bwAddAll")?.addEventListener("click", async () => {
       const items = getSelectedProducts();
       if (!items.length) return;
@@ -496,18 +479,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // ========= Payload builder =========
   function buildAddPayload(product) {
     const pid = String(product.ccvProductId || "").trim();
     if (!pid) return null;
 
-    const base = {
-      productId: pid,
-      quantity: 1,
-      shopUrl: toAbs(product.url),
-    };
+    const base = { productId: pid, quantity: 1, shopUrl: toAbs(product.url) };
 
-    // Lakstift op kleur: stuur merk + kleurcode mee
     if (product.needsColorInfo) {
       base.attributes = {
         [ATTR_COLOR]: String(state.colorCode || "").trim(),
@@ -522,7 +499,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return base;
   }
 
-  // ========= Helpers =========
   function isColorInfoValid() {
     return String(state.carBrand || "").trim().length > 0 && String(state.colorCode || "").trim().length > 0;
   }
@@ -572,14 +548,12 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => el.classList.remove("bw-pulse"), 450);
   }
 
-  // ========= CSS =========
   function injectStyles() {
     if (document.getElementById("bwStyles")) return;
 
     const css = `
     .bw-wrap{ display:grid; grid-template-columns: 1fr 320px; gap:16px; align-items:start; }
     @media (max-width: 980px){ .bw-wrap{ grid-template-columns: 1fr; } }
-
     .bw-card{ background:#fff; border:1px solid #e9edf3; border-radius:18px; box-shadow:0 10px 24px rgba(16,24,40,.06); overflow:hidden; }
     .bw-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px; }
     .bw-title{ font-weight:950; font-size:18px; color:#0f172a; }
@@ -589,11 +563,9 @@ document.addEventListener("DOMContentLoaded", () => {
     .bw-step.is-on{ color:#0f172a; border-color:#cfe2ff; background:#eff6ff; }
     .bw-progress{ height:8px; background:#f1f5f9; }
     .bw-bar{ height:8px; background:#22c55e; }
-
     .bw-body{ padding:18px; }
     .bw-h{ font-weight:950; font-size:16px; color:#0f172a; margin-bottom:10px; }
     .bw-sub2{ color:#64748b; font-size:13px; margin-bottom:12px; }
-
     .bw-grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     @media (max-width: 640px){ .bw-grid2{ grid-template-columns: 1fr; } }
     .bw-choice{ text-align:left; border:1px solid #e6edf7; border-radius:16px; padding:14px; background:#fff; cursor:pointer; box-shadow:0 8px 22px rgba(16,24,40,.06); }
@@ -602,44 +574,32 @@ document.addEventListener("DOMContentLoaded", () => {
     .bw-choiceText{ color:#64748b; font-size:13px; margin-top:6px; }
     .bw-pill{ display:inline-block; margin-top:10px; padding:6px 10px; border-radius:999px; background:#dcfce7; color:#166534; font-weight:900; font-size:12px; }
     .bw-pill--blue{ background:#dbeafe; color:#1e40af; }
-
     .bw-note{ margin-top:12px; border:1px solid #e5eaf3; background:#f8fafc; border-radius:14px; padding:12px; color:#475569; font-size:13px; }
     .bw-ul{ margin:8px 0 0; padding-left:18px; }
     .bw-ul li{ margin:4px 0; }
-
     .bw-products{ display:grid; gap:10px; }
-
     .bw-prod{ display:grid; grid-template-columns: 60px 1fr 54px; gap:12px; align-items:center; border:1px solid #e6edf7; border-radius:16px; padding:12px; background:#fff; box-shadow:0 8px 22px rgba(16,24,40,.06); }
     .bw-prod.is-selected{ border-color:#d7e2f2; box-shadow:0 12px 26px rgba(16,24,40,.10); }
     .bw-img{ width:60px;height:60px;border-radius:14px; border:1px solid #eef2f7; background:#f6f7fb; object-fit:contain; display:block; }
     .bw-img--ph{ background:linear-gradient(135deg,#f1f5f9,#fff); }
-
     .bw-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
     .bw-badge{ font-size:11px; font-weight:950; padding:5px 10px; border-radius:999px; background:#eff6ff; color:#1e40af; }
     .bw-badge--price{ background:#f1f5f9; color:#0f172a; }
-
     .bw-prodName{ font-weight:950; color:#0f172a; font-size:13.5px; line-height:1.2; }
     .bw-prodNotes{ margin-top:6px; color:#64748b; font-size:12.5px; }
-    .bw-warn{ margin-top:8px; font-size:12px; font-weight:900; color:#9a3412; }
-
     .bw-prodRight{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
     .bw-link{ font-size:12px; font-weight:900; color:#2563eb; text-decoration:none; }
     .bw-link:hover{ text-decoration:underline; }
-
     .bw-add{ width:40px;height:40px;border-radius:12px; border:0;background:#111;color:#fff; font-size:22px;line-height:1; cursor:pointer; display:grid;place-items:center; }
-    .bw-add:disabled{ opacity:.45; cursor:not-allowed; }
     .bw-prod.is-selected .bw-add{ background:#e8eef7; color:#111; border:1px solid #d7e2f2; }
-
     .bw-form{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     @media (max-width: 640px){ .bw-form{ grid-template-columns: 1fr; } }
     .bw-field label{ display:block; font-size:12px; font-weight:900; color:#0f172a; margin-bottom:6px; }
     .bw-field input{ width:100%; border:1px solid #e5eaf3; border-radius:14px; padding:12px 12px; outline:none; font-size:14px; }
     .bw-field input:focus{ border-color:#cfe2ff; box-shadow:0 0 0 4px rgba(59,130,246,.12); }
-
     .bw-details{ margin-top:12px; border:1px solid #e5eaf3; border-radius:14px; padding:10px 12px; background:#fff; }
     .bw-details summary{ cursor:pointer; font-weight:950; color:#0f172a; }
     .bw-detailsBody{ margin-top:10px; color:#475569; font-size:13px; }
-
     .bw-footer{ padding:14px 18px; border-top:1px solid #eef2f7; display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .bw-footerRight{ display:flex; gap:10px; }
     .bw-btn{ height:42px; padding:0 14px; border-radius:14px; font-weight:950; cursor:pointer; border:1px solid #e5eaf3; background:#fff; color:#0f172a; }
@@ -647,7 +607,6 @@ document.addEventListener("DOMContentLoaded", () => {
     .bw-btn--ghost:hover{ background:#f6f8fc; }
     .bw-btn--primary{ border:0; background:#22c55e; color:#fff; }
     .bw-btn--full{ width:100%; }
-
     .bw-side{ position:sticky; top:14px; }
     @media (max-width: 980px){ .bw-side{ position:static; } }
     .bw-sideCard{ background:#fff; border:1px solid #e9edf3; border-radius:18px; box-shadow:0 10px 24px rgba(16,24,40,.06); padding:16px; }
@@ -657,12 +616,10 @@ document.addEventListener("DOMContentLoaded", () => {
     .bw-sideTag{ font-size:11px; font-weight:950; padding:4px 8px; border-radius:999px; background:#f1f5f9; color:#0f172a; }
     .bw-sideEmpty{ color:#64748b; font-size:13px; }
     .bw-sideHint{ margin-top:10px; color:#64748b; font-size:12.5px; }
-
     .bw-mini{ border:1px solid #e5eaf3; background:#f8fafc; border-radius:14px; padding:10px; margin:10px 0 12px; }
     .bw-miniRow{ display:flex; justify-content:space-between; gap:8px; color:#475569; font-size:12.5px; }
     .bw-miniOk{ margin-top:8px; font-weight:950; color:#166534; font-size:12.5px; }
     .bw-miniWarn{ margin-top:8px; font-weight:950; color:#9a3412; font-size:12.5px; }
-
     .bw-pulse{ animation:bwPulse .45s ease; }
     @keyframes bwPulse{ 0%{ transform:scale(1); } 50%{ transform:scale(1.01); } 100%{ transform:scale(1); } }
     `;
