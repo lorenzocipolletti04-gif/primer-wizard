@@ -1,5 +1,5 @@
 // =====================
-// PRIMER WIZARD (Tooltec / lakopmaat.nl)
+// PRIMER WIZARD (iframe)
 // =====================
 
 // ===== Elements =====
@@ -26,7 +26,10 @@ const productList = document.getElementById("productList");
 const SHOP_ORIGIN = "https://www.lakopmaat.nl";
 const SHOP_BASE_URL = "https://www.lakopmaat.nl";
 
-// ===== Products (jouw echte URL's + ID's) =====
+// Hoe lang wachten we voordat we "refresh" vragen (ms)
+const MINICART_REFRESH_DELAY = 650;
+
+// ===== Products =====
 const PRODUCTS = {
   filler_1k: {
     key: "filler_1k",
@@ -194,7 +197,6 @@ function renderStep() {
 function selectOption(stepId, value) {
   answers[stepId] = value;
 
-  // als ondergrond verandert, reset goal
   if (stepId === "substrate") delete answers.goal;
 
   if (stepIndex < steps.length - 1) {
@@ -242,7 +244,6 @@ function buildAdvice(substrate, goal) {
     });
   };
 
-  // ---- Kunststof ----
   if (substrate === "kunststof") {
     out.summary =
       "Voor kunststof heb je een kunststof primer nodig voor goede hechting. Breng dun aan, laat flashen, daarna kun je verder met je lakopbouw.";
@@ -251,7 +252,6 @@ function buildAdvice(substrate, goal) {
     return out;
   }
 
-  // ---- Plamuur ----
   if (substrate === "plamuur") {
     out.summary =
       "Op plamuur werkt een hoogvullende primer het best: je vult schuurkrassen en krijgt een strakke, egale ondergrond.";
@@ -260,25 +260,16 @@ function buildAdvice(substrate, goal) {
     return out;
   }
 
-  // ---- Bestaande lak ----
   if (substrate === "bestaande_lak") {
-    if (goal === "egaliseren") {
-      out.summary =
-        "Op geschuurde lak is een primer/filler perfect om te egaliseren en een goede basis te maken voor de lak.";
-      push(PRODUCTS.filler_1k, "Beste keuze", "Egaliseert en vult lichte schuurkrassen.");
-      push(PRODUCTS.gloves, "Tip", "Werk schoon en vetvrij voor het beste resultaat.");
-      return out;
-    }
-
-    // vullen
     out.summary =
-      "Wil je meer opbouw en krassen wegwerken? Dan is een hoogvullende primer de juiste keuze.";
-    push(PRODUCTS.filler_1k, "Beste keuze", "Meer vulling/opbouw voor een strak eindresultaat.");
-    push(PRODUCTS.gloves, "Tip", "Handschoenen houden de ondergrond vetvrij.");
+      goal === "egaliseren"
+        ? "Op geschuurde lak is een primer/filler perfect om te egaliseren en een goede basis te maken voor de lak."
+        : "Wil je meer opbouw en krassen wegwerken? Dan is een hoogvullende primer de juiste keuze.";
+    push(PRODUCTS.filler_1k, "Beste keuze", goal === "egaliseren" ? "Egaliseert en vult lichte schuurkrassen." : "Meer vulling/opbouw voor een strak eindresultaat.");
+    push(PRODUCTS.gloves, "Tip", "Werk schoon en vetvrij voor het beste resultaat.");
     return out;
   }
 
-  // ---- Blank metaal ----
   if (substrate === "blank_metaal") {
     if (goal === "spotrepair") {
       out.summary =
@@ -289,7 +280,6 @@ function buildAdvice(substrate, goal) {
       return out;
     }
 
-    // maximale bescherming
     out.summary =
       "Voor blank metaal is epoxy de beste basis: top hechting én (anti)corrosie. Kies 2K voor maximale performance, of 1K als snelle/handige optie.";
     push(PRODUCTS.epoxy_2k, "Beste keuze", "Maximale hechting en corrosiebescherming (professioneel).");
@@ -308,11 +298,7 @@ function renderAdvice() {
   resultSummary.textContent = "Advies maken…";
   productList.innerHTML = "";
 
-  const substrate = answers.substrate;
-  const goal = answers.goal;
-
-  const data = buildAdvice(substrate, goal);
-
+  const data = buildAdvice(answers.substrate, answers.goal);
   resultSummary.textContent = data.summary || "";
 
   const products = data.products || [];
@@ -353,7 +339,7 @@ function renderAdvice() {
 }
 
 // =====================
-// Add to cart (postMessage to parent)
+// Add to cart messaging
 // =====================
 function bindAddToCartButtons() {
   productList.querySelectorAll(".addToCartBtn").forEach((btn) => {
@@ -362,7 +348,7 @@ function bindAddToCartButtons() {
       const shopUrl = btn.getAttribute("data-shop-url");
       if (!productId || !shopUrl) return;
 
-      // in iframe: naar parent (lakopmaat.nl) sturen
+      // 1) add-to-cart request to parent
       window.parent.postMessage(
         {
           type: "LOM_ADD_TO_CART",
@@ -375,35 +361,36 @@ function bindAddToCartButtons() {
         SHOP_ORIGIN
       );
 
+      // UI feedback
       const old = btn.textContent;
       btn.textContent = "Toevoegen…";
       btn.disabled = true;
 
+      // 2) ask parent to refresh minicart AFTER add is processed
+      setTimeout(() => {
+        window.parent.postMessage({ type: "LOM_REFRESH_MINICART" }, SHOP_ORIGIN);
+        window.parent.postMessage({ type: "LOM_OPEN_MINICART" }, SHOP_ORIGIN);
+      }, MINICART_REFRESH_DELAY);
+
       setTimeout(() => {
         btn.textContent = old;
         btn.disabled = false;
-      }, 1200);
+      }, 1400);
     });
   });
 }
 
-
-window.parent.postMessage({ type:"LOM_ADD_TO_CART", payload:{...}}, SHOP_ORIGIN);
-
-// extra: vraag parent om pas NA 600ms de minicart te refreshen/openen
-setTimeout(() => {
-  window.parent.postMessage({ type:"LOM_REFRESH_MINICART" }, SHOP_ORIGIN);
-}, 600);
-
-
-
-
-// optioneel: feedback van parent (als je dat later bouwt)
+// Parent may send back success/fail (optional)
 window.addEventListener("message", (event) => {
   if (event.origin !== "https://www.lakopmaat.nl" && event.origin !== "https://lakopmaat.nl") return;
   const data = event.data || {};
-  if (data.type !== "LOM_ADD_TO_CART_RESULT") return;
-  // hier kunnen we later een toast maken
+
+  // Als je parent dit terugstuurt na echte add-to-cart success:
+  if (data.type === "LOM_ADD_TO_CART_RESULT") {
+    // Dan vragen we meteen refresh/open (zonder te wachten)
+    window.parent.postMessage({ type: "LOM_REFRESH_MINICART" }, SHOP_ORIGIN);
+    window.parent.postMessage({ type: "LOM_OPEN_MINICART" }, SHOP_ORIGIN);
+  }
 });
 
 // =====================
