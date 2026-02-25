@@ -1,5 +1,5 @@
 // =====================
-// PRIMER WIZARD (iframe)
+// PRIMER WIZARD app.js (bulk select + 1 knop toevoegen)
 // =====================
 
 // ===== Elements =====
@@ -26,10 +26,7 @@ const productList = document.getElementById("productList");
 const SHOP_ORIGIN = "https://www.lakopmaat.nl";
 const SHOP_BASE_URL = "https://www.lakopmaat.nl";
 
-// Hoe lang wachten we voordat we "refresh" vragen (ms)
-const MINICART_REFRESH_DELAY = 650;
-
-// ===== Products =====
+// ===== Products (jouw echte URL's + ID's) =====
 const PRODUCTS = {
   filler_1k: {
     key: "filler_1k",
@@ -127,6 +124,9 @@ const steps = [
 let stepIndex = 0;
 let answers = {};
 
+// ===== selectie state voor bulk toevoegen =====
+let selectedProductIds = new Set();
+
 // =====================
 // UI helpers
 // =====================
@@ -143,6 +143,7 @@ function showResult() {
 function updateTopBar() {
   const total = steps.length;
   const current = stepIndex + 1;
+
   stepText.textContent = `Stap ${current} van ${total}`;
   stepHint.textContent = steps[stepIndex].hint || "";
 
@@ -197,7 +198,9 @@ function renderStep() {
 function selectOption(stepId, value) {
   answers[stepId] = value;
 
-  if (stepId === "substrate") delete answers.goal;
+  if (stepId === "substrate") {
+    delete answers.goal;
+  }
 
   if (stepIndex < steps.length - 1) {
     stepIndex += 1;
@@ -217,6 +220,7 @@ function goBack() {
 function resetAll() {
   stepIndex = 0;
   answers = {};
+  selectedProductIds = new Set();
   renderStep();
 }
 
@@ -261,12 +265,18 @@ function buildAdvice(substrate, goal) {
   }
 
   if (substrate === "bestaande_lak") {
+    if (goal === "egaliseren") {
+      out.summary =
+        "Op geschuurde lak is een primer/filler perfect om te egaliseren en een goede basis te maken voor de lak.";
+      push(PRODUCTS.filler_1k, "Beste keuze", "Egaliseert en vult lichte schuurkrassen.");
+      push(PRODUCTS.gloves, "Tip", "Werk schoon en vetvrij voor het beste resultaat.");
+      return out;
+    }
+
     out.summary =
-      goal === "egaliseren"
-        ? "Op geschuurde lak is een primer/filler perfect om te egaliseren en een goede basis te maken voor de lak."
-        : "Wil je meer opbouw en krassen wegwerken? Dan is een hoogvullende primer de juiste keuze.";
-    push(PRODUCTS.filler_1k, "Beste keuze", goal === "egaliseren" ? "Egaliseert en vult lichte schuurkrassen." : "Meer vulling/opbouw voor een strak eindresultaat.");
-    push(PRODUCTS.gloves, "Tip", "Werk schoon en vetvrij voor het beste resultaat.");
+      "Wil je meer opbouw en krassen wegwerken? Dan is een hoogvullende primer de juiste keuze.";
+    push(PRODUCTS.filler_1k, "Beste keuze", "Meer vulling/opbouw voor een strak eindresultaat.");
+    push(PRODUCTS.gloves, "Tip", "Handschoenen houden de ondergrond vetvrij.");
     return out;
   }
 
@@ -293,6 +303,19 @@ function buildAdvice(substrate, goal) {
   return out;
 }
 
+// default selectie regels
+function shouldDefaultSelect(stepLabel) {
+  const s = String(stepLabel || "").toLowerCase();
+  if (s.includes("beste")) return true;
+  if (s.includes("snelle")) return true;
+  if (s.includes("alternatief")) return true;
+  if (s.includes("tip") || s.includes("optioneel")) return false;
+  return true;
+}
+
+// =====================
+// Render advice (checkbox + bulk button)
+// =====================
 function renderAdvice() {
   showResult();
   resultSummary.textContent = "Advies maken…";
@@ -302,96 +325,122 @@ function renderAdvice() {
   resultSummary.textContent = data.summary || "";
 
   const products = data.products || [];
-  productList.innerHTML = products
-    .map((p, idx) => {
-      const cls = idx === 0 ? "product recommended" : "product";
 
-      const badges = [
-        p.stepLabel ? `<span class="badge">${escapeHtml(p.stepLabel)}</span>` : "",
-        p.brand ? `<span class="badge">${escapeHtml(p.brand)}</span>` : "",
-        p.code ? `<span class="badge">${escapeHtml(p.code)}</span>` : "",
-      ].join("");
+  // init defaults (alleen als nog niets gekozen)
+  if (selectedProductIds.size === 0) {
+    products.forEach((p) => {
+      if (p.ccvProductId && shouldDefaultSelect(p.stepLabel)) {
+        selectedProductIds.add(String(p.ccvProductId));
+      }
+    });
+  }
 
-      const url = p.url ? toAbsoluteUrl(p.url) : "";
-      const viewBtn = url
-        ? `<a class="viewBtn" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Bekijk product</a>`
-        : "";
+  productList.innerHTML = `
+    <div class="pickList">
+      ${products
+        .map((p, idx) => {
+          const id = p.ccvProductId ? String(p.ccvProductId) : "";
+          const checked = id && selectedProductIds.has(id) ? "checked" : "";
+          const disabled = !id ? "disabled" : "";
+          const cls = idx === 0 ? "product recommended pickRow" : "product pickRow";
+          const url = p.url ? toAbsoluteUrl(p.url) : "";
 
-      const addBtn =
-        p.ccvProductId && url
-          ? `<button class="addToCartBtn" type="button"
-                data-ccv-id="${escapeHtml(p.ccvProductId)}"
-                data-shop-url="${escapeHtml(url)}">Voeg toe aan winkelwagen</button>`
-          : "";
+          const badges = [
+            p.stepLabel ? `<span class="badge">${escapeHtml(p.stepLabel)}</span>` : "",
+            p.brand ? `<span class="badge">${escapeHtml(p.brand)}</span>` : "",
+            p.code ? `<span class="badge">${escapeHtml(p.code)}</span>` : "",
+          ].join("");
 
-      return `
-        <div class="${cls}">
-          <div class="productHead">${badges}</div>
-          <div class="productName">${escapeHtml(p.name || "")}</div>
-          ${p.notes ? `<div class="productNotes">${escapeHtml(p.notes)}</div>` : ""}
-          <div class="productActions">${viewBtn}${addBtn}</div>
-        </div>
-      `;
-    })
-    .join("");
+          return `
+            <label class="${cls}">
+              <div class="pickLeft">
+                <input class="pickCheck" type="checkbox"
+                  data-ccv-id="${escapeHtml(id)}"
+                  ${checked} ${disabled} />
+              </div>
 
-  bindAddToCartButtons();
+              <div class="pickBody">
+                <div class="productHead">${badges}</div>
+                <div class="productName">${escapeHtml(p.name || "")}</div>
+                ${p.notes ? `<div class="productNotes">${escapeHtml(p.notes)}</div>` : ""}
+                <div class="pickLinks">
+                  ${url ? `<a class="viewBtn" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Bekijk product</a>` : ""}
+                </div>
+              </div>
+            </label>
+          `;
+        })
+        .join("")}
+    </div>
+
+    <div class="bulkBar">
+      <div class="bulkText" id="bulkText">Selecteer producten om toe te voegen.</div>
+      <button class="bulkBtn" id="bulkAddBtn" type="button">Voeg geselecteerde producten toe aan winkelwagen</button>
+    </div>
+  `;
+
+  bindPickList(products);
+  updateBulkBar();
 }
 
-// =====================
-// Add to cart messaging
-// =====================
-function bindAddToCartButtons() {
-  productList.querySelectorAll(".addToCartBtn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const productId = btn.getAttribute("data-ccv-id");
-      const shopUrl = btn.getAttribute("data-shop-url");
-      if (!productId || !shopUrl) return;
+function bindPickList(products) {
+  const checks = productList.querySelectorAll(".pickCheck");
+  checks.forEach((c) => {
+    c.addEventListener("change", () => {
+      const id = c.getAttribute("data-ccv-id") || "";
+      if (!id) return;
 
-      // 1) add-to-cart request to parent
-      window.parent.postMessage(
-        {
-          type: "LOM_ADD_TO_CART",
-          payload: {
-            productId: String(productId),
-            quantity: 1,
-            shopUrl: String(shopUrl),
-          },
-        },
-        SHOP_ORIGIN
-      );
+      if (c.checked) selectedProductIds.add(id);
+      else selectedProductIds.delete(id);
 
-      // UI feedback
-      const old = btn.textContent;
-      btn.textContent = "Toevoegen…";
-      btn.disabled = true;
-
-      // 2) ask parent to refresh minicart AFTER add is processed
-      setTimeout(() => {
-        window.parent.postMessage({ type: "LOM_REFRESH_MINICART" }, SHOP_ORIGIN);
-        window.parent.postMessage({ type: "LOM_OPEN_MINICART" }, SHOP_ORIGIN);
-      }, MINICART_REFRESH_DELAY);
-
-      setTimeout(() => {
-        btn.textContent = old;
-        btn.disabled = false;
-      }, 1400);
+      updateBulkBar();
     });
   });
+
+  const bulkBtn = productList.querySelector("#bulkAddBtn");
+  if (bulkBtn) bulkBtn.addEventListener("click", () => bulkAddSelected(products));
 }
 
-// Parent may send back success/fail (optional)
-window.addEventListener("message", (event) => {
-  if (event.origin !== "https://www.lakopmaat.nl" && event.origin !== "https://lakopmaat.nl") return;
-  const data = event.data || {};
+function updateBulkBar() {
+  const bulkText = productList.querySelector("#bulkText");
+  const bulkBtn = productList.querySelector("#bulkAddBtn");
+  if (!bulkText || !bulkBtn) return;
 
-  // Als je parent dit terugstuurt na echte add-to-cart success:
-  if (data.type === "LOM_ADD_TO_CART_RESULT") {
-    // Dan vragen we meteen refresh/open (zonder te wachten)
-    window.parent.postMessage({ type: "LOM_REFRESH_MINICART" }, SHOP_ORIGIN);
-    window.parent.postMessage({ type: "LOM_OPEN_MINICART" }, SHOP_ORIGIN);
+  const count = selectedProductIds.size;
+  bulkText.textContent = count === 0 ? "Selecteer producten om toe te voegen." : `${count} product(en) geselecteerd`;
+  bulkBtn.disabled = count === 0;
+}
+
+async function bulkAddSelected(products) {
+  const bulkBtn = productList.querySelector("#bulkAddBtn");
+  if (!bulkBtn) return;
+
+  const selected = products
+    .filter((p) => p.ccvProductId && selectedProductIds.has(String(p.ccvProductId)))
+    .map((p) => ({
+      productId: String(p.ccvProductId),
+      quantity: 1,
+      shopUrl: toAbsoluteUrl(p.url),
+    }));
+
+  if (!selected.length) return;
+
+  const oldText = bulkBtn.textContent;
+  bulkBtn.disabled = true;
+  bulkBtn.textContent = "Toevoegen…";
+
+  // Voeg 1-voor-1 toe (xajax/CCV is stabieler met kleine interval)
+  for (let i = 0; i < selected.length; i++) {
+    window.parent.postMessage({ type: "LOM_ADD_TO_CART", payload: selected[i] }, SHOP_ORIGIN);
+    await new Promise((r) => setTimeout(r, 350));
   }
-});
+
+  bulkBtn.textContent = "Toegevoegd ✓";
+  setTimeout(() => {
+    bulkBtn.textContent = oldText;
+    bulkBtn.disabled = false;
+  }, 1200);
+}
 
 // =====================
 // Utils
