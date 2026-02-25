@@ -1,316 +1,678 @@
-:root{
-  --bg:#ffffff;
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("Bumper Wizard loaded ✅");
 
-  /* cards */
-  --card:#ffffff;
-  --card2:#ffffff;
+  const SHOP_ORIGIN = "https://www.lakopmaat.nl";
+  const SHOP_BASE_URL = "https://www.lakopmaat.nl";
 
-  /* text */
-  --text:#0f172a;        /* bijna zwart */
-  --muted:#475569;       /* grijs */
-  --line:#e2e8f0;        /* lichtgrijze rand */
+  // Jouw CCV attribute velden (zoals je doorgaf)
+  const ATTR_COLOR = "product_attribute[6901766]";
+  const ATTR_BRAND = "product_attribute[6901769]";
 
-  /* accents */
-  --accent:#2563eb;
-  --accent2:#1d4ed8;
+  // ========= PRODUCTEN =========
+  const PRODUCTS = {
+    // Kleine schade (op kleur) - jouw ingevulde gegevens
+    lakstift_kleur: {
+      key: "lakstift_kleur",
+      name: "Lakopmaat Lakstift op Kleur",
+      badge: "Kleine schade",
+      price: "",
+      url: "/nl/Lakopmaat-Lakstift-op-Kleur",
+      ccvProductId: "900456938",
+      image: "",
+      notes: "Voor kleine beschadigingen, steenslag en randjes.",
+      defaultQty: 1,
+      needsColorInfo: true, // <- merk + kleurcode verplicht
+    },
 
-  --good:#16a34a;
-}
+    // Extra optie bij kleine schade
+    lakstift_blanke: {
+      key: "lakstift_blanke",
+      name: "Motip Blanke Lakstift Hoogglans",
+      badge: "Afwerking",
+      price: "",
+      url: "/nl/Motip-Blanke-Lakstift-Hoogglans",
+      ccvProductId: "900456953", // TODO: vul hier het product id in (die had je nog niet meegegeven)
+      image: "",
+      notes: "Extra glans + bescherming over de lakstift (aanrader).",
+      defaultQty: 1,
+      needsColorInfo: false,
+    },
 
-*{ box-sizing:border-box; }
+    // Grote schade (later invullen)
+    primer_basis: {
+      key: "primer_basis",
+      name: "Universele 1K primer (basis)",
+      badge: "Primer",
+      price: "",
+      url: "/nl/...", // TODO
+      ccvProductId: "", // TODO
+      image: "",
+      notes: "Voor geschuurde lak / lichte reparaties.",
+      defaultQty: 1,
+    },
+    primer_filler: {
+      key: "primer_filler",
+      name: "Filler / hoogvullende primer",
+      badge: "Filler",
+      price: "",
+      url: "/nl/...", // TODO
+      ccvProductId: "", // TODO
+      image: "",
+      notes: "Vult schuurkrassen en kleine oneffenheden. Strakker resultaat.",
+      defaultQty: 1,
+    },
+    primer_epoxy: {
+      key: "primer_epoxy",
+      name: "Epoxy primer (hechting + bescherming)",
+      badge: "Epoxy",
+      price: "",
+      url: "/nl/...", // TODO
+      ccvProductId: "", // TODO
+      image: "",
+      notes: "Beste keuze op blank metaal / extra bescherming.",
+      defaultQty: 1,
+    },
+    primer_plastic: {
+      key: "primer_plastic",
+      name: "Plastic primer (hechting op kunststof)",
+      badge: "Kunststof",
+      price: "",
+      url: "/nl/...", // TODO
+      ccvProductId: "", // TODO
+      image: "",
+      notes: "Voor kale bumperkunststof of lastige hechting.",
+      defaultQty: 1,
+    },
+    spuitbus_kleur: {
+      key: "spuitbus_kleur",
+      name: "Spuitbus autolak op kleur",
+      badge: "Kleur",
+      price: "",
+      url: "/nl/...", // TODO
+      ccvProductId: "", // TODO
+      image: "",
+      notes: "Voor grotere schades: primer → kleur → (blanke lak).",
+      defaultQty: 1,
+    },
+    blanke_lak: {
+      key: "blanke_lak",
+      name: "Blanke lak (hoogglans)",
+      badge: "Afwerking",
+      price: "",
+      url: "/nl/...", // TODO
+      ccvProductId: "", // TODO
+      image: "",
+      notes: "Bescherming + glans. (Bij metallic/parelmoer meestal nodig.)",
+      defaultQty: 1,
+    },
+  };
 
-html, body{
-  height:auto;
-}
+  // ========= Mount =========
+  const mount = document.getElementById("bumperWizard");
+  if (!mount) {
+    console.warn("bumperWizard div niet gevonden ❌");
+    return;
+  }
 
-body{
-  margin:0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  background: var(--bg) !important;
-  color:var(--text);
-}
+  injectStyles();
 
-/* Container houdt alles compact zodat er geen enorme lege onderkant ontstaat */
-.container{
-  max-width: 920px;
-  margin: 0 auto;
-  padding: 24px;
-}
+  // ========= State =========
+  const state = {
+    step: 1,
+    damageSize: null, // "small" | "large"
+    selectedIds: new Set(),
+    carBrand: "",
+    colorCode: "",
+  };
 
-/* Header */
-.header{ margin-bottom: 14px; }
+  // ========= Render =========
+  function render() {
+    mount.innerHTML = `
+      <div class="bw-wrap">
+        <div class="bw-card">
+          ${topBar()}
+          ${body()}
+          ${footer()}
+        </div>
+        ${sidebar()}
+      </div>
+    `;
+    bind();
+  }
 
-.brand{
-  display:flex;
-  gap: 12px;
-  align-items:flex-start;
-}
+  function topBar() {
+    const pct = Math.round((state.step / 3) * 100);
+    return `
+      <div class="bw-top">
+        <div>
+          <div class="bw-title">Bumperschade keuzehulp</div>
+          <div class="bw-sub">Kies je schade en voeg direct de juiste producten toe.</div>
+        </div>
+        <div class="bw-steps">
+          <div class="bw-step ${state.step === 1 ? "is-on" : ""}">1</div>
+          <div class="bw-step ${state.step === 2 ? "is-on" : ""}">2</div>
+          <div class="bw-step ${state.step === 3 ? "is-on" : ""}">3</div>
+        </div>
+      </div>
+      <div class="bw-progress"><div class="bw-bar" style="width:${pct}%"></div></div>
+    `;
+  }
 
-.logo{
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), #93c5fd);
-  color:#ffffff;
-  font-weight: 900;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  box-shadow: 0 10px 25px rgba(37,99,235,.18);
-}
+  function body() {
+    return `
+      <div class="bw-body">
+        ${state.step === 1 ? step1() : ""}
+        ${state.step === 2 ? step2() : ""}
+        ${state.step === 3 ? step3() : ""}
+      </div>
+    `;
+  }
 
-h1{
-  margin:0;
-  font-size: 24px;
-  letter-spacing: -0.2px;
-}
+  function footer() {
+    return `
+      <div class="bw-footer">
+        <button class="bw-btn bw-btn--ghost" id="bwBack" ${state.step === 1 ? "disabled" : ""}>Terug</button>
+        <div class="bw-footerRight">
+          <button class="bw-btn bw-btn--ghost" id="bwReset">Opnieuw</button>
+          <button class="bw-btn bw-btn--primary" id="bwNext">${nextLabel()}</button>
+        </div>
+      </div>
+    `;
+  }
 
-.sub{
-  margin: 6px 0 0;
-  color: var(--muted);
-}
+  function sidebar() {
+    const items = getSelectedProducts();
+    const needsColor = selectionNeedsColorInfo(items);
+    const colorOk = isColorInfoValid();
 
-/* Card */
-.card{
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 16px;
-  box-shadow: 0 12px 35px rgba(15,23,42,.08);
-}
+    return `
+      <div class="bw-side">
+        <div class="bw-sideCard">
+          <div class="bw-sideTitle">Jouw selectie</div>
 
-.hidden{ display:none; }
+          <div class="bw-sideItems">
+            ${
+              items.length
+                ? items
+                    .map(
+                      (p) => `
+                      <div class="bw-sideItem">
+                        • ${escapeHtml(p.name)}
+                        ${p.badge ? `<span class="bw-sideTag">${escapeHtml(p.badge)}</span>` : ""}
+                      </div>`
+                    )
+                    .join("")
+                : `<div class="bw-sideEmpty">Nog niets geselecteerd.</div>`
+            }
+          </div>
 
-/* Topbar / progress */
-.topbar{
-  display:flex;
-  gap: 16px;
-  align-items:center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-}
+          ${
+            needsColor
+              ? `
+                <div class="bw-mini">
+                  <div class="bw-miniRow"><span>Merk:</span> <b>${escapeHtml(state.carBrand || "-")}</b></div>
+                  <div class="bw-miniRow"><span>Kleurcode:</span> <b>${escapeHtml(state.colorCode || "-")}</b></div>
+                  ${
+                    colorOk
+                      ? `<div class="bw-miniOk">Kleurinfo ingevuld ✓</div>`
+                      : `<div class="bw-miniWarn">Vul merk + kleurcode in (stap 3)</div>`
+                  }
+                </div>
+              `
+              : ""
+          }
 
-.stepMeta{
-  display:flex;
-  gap: 8px;
-  align-items:center;
-  color: var(--muted);
-  font-size: 14px;
-}
+          <button class="bw-btn bw-btn--primary bw-btn--full" id="bwAddAll" ${items.length ? "" : "disabled"}>
+            ${items.length <= 1 ? "Toevoegen aan winkelwagen" : `${items.length} producten toevoegen`}
+          </button>
 
-.stepText{ color: var(--text); font-weight: 800; }
-.dot{ opacity:.7; }
-.stepHint{ color: var(--muted); }
+          <div class="bw-sideHint">
+            Bij kleine schade staat de lakstift automatisch geselecteerd.
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
-.progressWrap{
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  min-width: 240px;
-}
+  function step1() {
+    const smallSelected = state.damageSize === "small";
 
-.progressTrack{
-  height: 10px;
-  width: 200px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  border: 1px solid var(--line);
-  overflow:hidden;
-}
+    return `
+      <div class="bw-h">Stap 1 — Hoe groot is de schade?</div>
 
-.progressBar{
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), #60a5fa);
-  width: 0%;
-  transition: width .25s ease;
-}
+      <div class="bw-grid2">
+        <button class="bw-choice ${smallSelected ? "is-active" : ""}" data-size="small" type="button">
+          <div class="bw-choiceTitle">Kleine schade</div>
+          <div class="bw-choiceText">Steenslag / krasje / randje</div>
+          <div class="bw-pill">➡️ Lakstift</div>
+        </button>
 
-.progressLabel{
-  font-size: 12px;
-  color: var(--muted);
-  min-width: 34px;
-  text-align:right;
-}
+        <button class="bw-choice ${state.damageSize === "large" ? "is-active" : ""}" data-size="large" type="button">
+          <div class="bw-choiceTitle">Grotere schade</div>
+          <div class="bw-choiceText">Grote kras, geschaafd of reparatieplek</div>
+          <div class="bw-pill bw-pill--blue">➡️ Spuiten</div>
+        </button>
+      </div>
 
-.divider{
-  height:1px;
-  background: var(--line);
-  margin: 12px 0 14px;
-}
+      ${
+        smallSelected
+          ? `
+          <div class="bw-note">
+            <b>Extra optie:</b> wil je ook een blanke lakstift (hoogglans) voor afwerking?
+          </div>
 
-.question{
-  margin: 0 0 12px;
-  font-size: 18px;
-  letter-spacing: -0.2px;
-}
+          <div class="bw-products" style="margin-top:10px">
+            ${productCard(PRODUCTS.lakstift_blanke, { showAddEvenIfNoId: true })}
+          </div>
 
-/* Options */
-.options{
-  display:grid;
-  gap: 10px;
-}
+          <div class="bw-note">
+            Tip: De blanke lakstift is vaak een mooie afwerking voor extra glans en bescherming.
+          </div>
+        `
+          : `
+          <div class="bw-note">
+            Kies je “kleine schade”? Dan zetten we automatisch <b>lakstift op kleur</b> in je selectie.
+          </div>
+        `
+      }
+    `;
+  }
 
-.optionBtn{
-  text-align:left;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: #ffffff;
-  color: var(--text);
-  cursor: pointer;
-  transition: transform .06s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
-}
+  function step2() {
+    if (state.damageSize !== "large") {
+      return `
+        <div class="bw-h">Stap 2 — Primer(s)</div>
+        <div class="bw-note">
+          Je koos “kleine schade”. Primer(s) zijn dan meestal niet nodig. Ga door naar kleur (stap 3).
+        </div>
+      `;
+    }
 
-.optionBtn:hover{
-  border-color: #ffd200;
-  background: linear-gradient(90deg, #ffd200, #ffea70);
-  box-shadow: 0 6px 18px rgba(255,210,0,.25);
-  color: #111; /* zorgt dat tekst goed leesbaar blijft */
-}
+    return `
+      <div class="bw-h">Stap 2 — Kies je primer(s)</div>
+      <div class="bw-sub2">Selecteer wat je nodig hebt (meerdere keuzes mogelijk).</div>
 
-.optionBtn:active{
-  transform: translateY(1px);
-}
+      <div class="bw-products">
+        ${productCard(PRODUCTS.primer_basis)}
+        ${productCard(PRODUCTS.primer_filler)}
+        ${productCard(PRODUCTS.primer_epoxy)}
+        ${productCard(PRODUCTS.primer_plastic)}
+      </div>
+    `;
+  }
 
-/* Actions / buttons */
-.actions{
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  margin-top: 14px;
-}
+  function step3() {
+    const needsColor = selectionNeedsColorInfo(getSelectedProducts());
 
-.btn{
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(29,78,216,.25);
-  background: var(--accent2);
-  color: #ffffff;
-  cursor:pointer;
-  font-weight: 700;
-}
+    return `
+      <div class="bw-h">Stap 3 — Kleur</div>
+      <div class="bw-sub2">${needsColor ? "Verplicht voor lakstift op kleur." : "Optioneel, maar handig om alvast klaar te zetten."}</div>
 
-.btn:hover{ filter: brightness(1.03); }
-.btn:active{ transform: translateY(1px); }
+      <div class="bw-form">
+        <div class="bw-field">
+          <label>Merk auto ${needsColor ? "*" : ""}</label>
+          <input id="bwBrand" type="text" placeholder="Bijv. Volkswagen, BMW, Ford…" value="${escapeHtml(state.carBrand)}">
+        </div>
 
-.btn.secondary{
-  background: #ffffff;
-  color: var(--text);
-  border-color: var(--line);
-}
+        <div class="bw-field">
+          <label>Kleurcode ${needsColor ? "*" : ""}</label>
+          <input id="bwColor" type="text" placeholder="Bijv. LA7W, 1G3, Z157…" value="${escapeHtml(state.colorCode)}">
+        </div>
+      </div>
 
-.btn.ghost{
-  margin-left:auto;
-  background: transparent;
-  border-color: transparent;
-  color: var(--muted);
-  font-weight: 600;
-}
+      <details class="bw-details">
+        <summary>Waar vind ik de kleurcode?</summary>
+        <div class="bw-detailsBody">
+          <p>De kleurcode staat meestal op een sticker/plaatje op één van deze plekken:</p>
+          <ul class="bw-ul">
+            <li>In de <b>deurstijl</b> (bestuurders- of passagierskant)</li>
+            <li>Onder de <b>motorkap</b> (slotplaat / spatbord)</li>
+            <li>In de <b>kofferbak</b> (reservewielbak / zijwand)</li>
+            <li>In het <b>serviceboekje</b> of onderhoudssticker</li>
+          </ul>
+        </div>
+      </details>
+    `;
+  }
 
-.btn:disabled{
-  opacity:.45;
-  cursor:not-allowed;
-  transform: none;
-}
+  function productCard(p, opts = {}) {
+    const id = String(p.ccvProductId || "");
+    const selected = id && state.selectedIds.has(id);
 
-/* Results */
-.resultTop{
-  display:flex;
-  justify-content: space-between;
-  align-items:flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
-}
+    // showAddEvenIfNoId: we tonen de + knop ook als id nog leeg is, maar dan disabled
+    const allowAdd = opts.showAddEvenIfNoId ? true : !!id;
+    const addDisabled = allowAdd && !id ? "disabled" : "";
 
-.resultSummary{
-  margin: 10px 0 14px;
-  color: var(--muted);
-  line-height: 1.45;
-}
+    const img = p.image
+      ? `<img class="bw-img" src="${escapeHtml(toAbs(p.image))}" alt="" loading="lazy">`
+      : `<div class="bw-img bw-img--ph"></div>`;
 
-.productList{
-  display:grid;
-  gap: 10px;
-}
+    return `
+      <div class="bw-prod ${selected ? "is-selected" : ""}" data-id="${escapeHtml(id)}" data-key="${escapeHtml(p.key || "")}">
+        ${img}
+        <div class="bw-prodMid">
+          <div class="bw-badges">
+            ${p.badge ? `<span class="bw-badge">${escapeHtml(p.badge)}</span>` : ""}
+            ${p.price ? `<span class="bw-badge bw-badge--price">${escapeHtml(p.price)}</span>` : ""}
+          </div>
+          <div class="bw-prodName">${escapeHtml(p.name || "")}</div>
+          ${p.notes ? `<div class="bw-prodNotes">${escapeHtml(p.notes)}</div>` : ""}
+          ${!id && opts.showAddEvenIfNoId ? `<div class="bw-warn">⚠️ Vul nog productId in voor toevoegen</div>` : ""}
+        </div>
 
-.product{
-  border: 1px solid var(--line);
-  background: #ffffff;
-  border-radius: 14px;
-  padding: 12px 14px;
-  box-shadow: 0 10px 25px rgba(15,23,42,.06);
-}
+        <div class="bw-prodRight">
+          ${
+            p.url
+              ? `<a class="bw-link" href="${escapeHtml(toAbs(p.url))}" target="_blank" rel="noreferrer">Open</a>`
+              : ""
+          }
+          <button type="button" class="bw-add" ${addDisabled}>${selected ? "✓" : "+"}</button>
+        </div>
+      </div>
+    `;
+  }
 
-.productHead{
-  display:flex;
-  gap: 8px;
-  align-items:center;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
-}
+  function nextLabel() {
+    if (state.step === 1) return "Volgende";
+    if (state.step === 2) return "Naar kleur";
+    return "Klaar";
+  }
 
-.badge{
-  font-size: 12px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  background: #f8fafc;
-}
+  // ========= Events =========
+  function bind() {
+    // step1 choice
+    mount.querySelectorAll("[data-size]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const size = btn.getAttribute("data-size");
+        state.damageSize = size;
 
-.productName{
-  font-weight: 900;
-}
+        // reset selection, auto-select defaults
+        state.selectedIds.clear();
 
-.productNotes{
-  color: var(--muted);
-  margin-top: 6px;
-  line-height: 1.4;
-}
+        if (size === "small") {
+          autoSelect(PRODUCTS.lakstift_kleur); // <- jouw wens
+          // blanke lakstift NIET standaard, user kiest
+        } else {
+          autoSelect(PRODUCTS.spuitbus_kleur);
+          autoSelect(PRODUCTS.blanke_lak);
+        }
 
-.productLink{
-  margin-top: 8px;
-}
+        render();
+      });
+    });
 
-a{
-  color: var(--accent2);
-  text-decoration:none;
-}
-a:hover{ text-decoration: underline; }
+    // toggle products
+    mount.querySelectorAll(".bw-add").forEach((b) => {
+      b.addEventListener("click", () => {
+        const prod = b.closest(".bw-prod");
+        const id = prod?.getAttribute("data-id") || "";
+        if (!id) return; // id is verplicht om te selecteren/toe te voegen
 
-.footer{
-  margin-top: 14px;
-  color: var(--muted);
-}
+        if (state.selectedIds.has(id)) state.selectedIds.delete(id);
+        else state.selectedIds.add(id);
 
-/* Extra: voorkomt “rare” extra hoogte in sommige embeds */
-#app, main{
-  min-height:auto !important;
-}
+        render();
+      });
+    });
 
+    // inputs
+    const brand = mount.querySelector("#bwBrand");
+    const color = mount.querySelector("#bwColor");
+    if (brand) brand.addEventListener("input", (e) => (state.carBrand = e.target.value || ""));
+    if (color) color.addEventListener("input", (e) => (state.colorCode = e.target.value || ""));
 
-/* Wizard product actieknoppen */
-.productActions{
-  display:flex;
-  gap:10px;
-  margin-top:10px;
-  flex-wrap:wrap;
-}
+    // nav
+    mount.querySelector("#bwBack")?.addEventListener("click", () => {
+      if (state.step > 1) state.step -= 1;
+      render();
+    });
 
-.viewBtn, .addToCartBtn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:10px 12px;
-  border-radius:10px;
-  font-weight:800;
-  text-decoration:none;
-  border:0;
-  cursor:pointer;
-}
+    mount.querySelector("#bwReset")?.addEventListener("click", () => {
+      state.step = 1;
+      state.damageSize = null;
+      state.selectedIds.clear();
+      state.carBrand = "";
+      state.colorCode = "";
+      render();
+    });
 
-.addToCartBtn:disabled{
-  opacity:.7;
-  cursor:default;
-}
+    mount.querySelector("#bwNext")?.addEventListener("click", () => {
+      if (state.step === 1) {
+        if (!state.damageSize) return pulse(mount.querySelector(".bw-grid2"));
+        state.step = 2;
+        render();
+        return;
+      }
+      if (state.step === 2) {
+        state.step = 3;
+        render();
+        return;
+      }
+
+      // step3 validate if needed
+      const items = getSelectedProducts();
+      if (selectionNeedsColorInfo(items) && !isColorInfoValid()) {
+        pulse(mount.querySelector(".bw-form"));
+        return;
+      }
+
+      mount.querySelector("#bwAddAll")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      pulse(mount.querySelector(".bw-sideCard"));
+    });
+
+    // add all
+    mount.querySelector("#bwAddAll")?.addEventListener("click", async () => {
+      const items = getSelectedProducts();
+      if (!items.length) return;
+
+      if (selectionNeedsColorInfo(items) && !isColorInfoValid()) {
+        state.step = 3;
+        render();
+        setTimeout(() => pulse(mount.querySelector(".bw-form")), 50);
+        return;
+      }
+
+      const btn = mount.querySelector("#bwAddAll");
+      const old = btn?.textContent || "";
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Toevoegen…";
+      }
+
+      for (let i = 0; i < items.length; i++) {
+        const payload = buildAddPayload(items[i]);
+        if (!payload) continue;
+        window.parent.postMessage({ type: "LOM_ADD_TO_CART", payload }, SHOP_ORIGIN);
+        await sleep(350);
+      }
+
+      if (btn) {
+        btn.textContent = "Toegevoegd ✓";
+        setTimeout(() => {
+          btn.textContent = old;
+          btn.disabled = false;
+        }, 1100);
+      }
+    });
+  }
+
+  // ========= Payload builder =========
+  function buildAddPayload(product) {
+    const pid = String(product.ccvProductId || "").trim();
+    if (!pid) return null;
+
+    const base = {
+      productId: pid,
+      quantity: 1,
+      shopUrl: toAbs(product.url),
+    };
+
+    // Lakstift op kleur: stuur merk + kleurcode mee
+    if (product.needsColorInfo) {
+      base.attributes = {
+        [ATTR_COLOR]: String(state.colorCode || "").trim(),
+        [ATTR_BRAND]: String(state.carBrand || "").trim(),
+      };
+      base.meta = {
+        carBrand: String(state.carBrand || "").trim(),
+        colorCode: String(state.colorCode || "").trim(),
+      };
+    }
+
+    return base;
+  }
+
+  // ========= Helpers =========
+  function isColorInfoValid() {
+    return String(state.carBrand || "").trim().length > 0 && String(state.colorCode || "").trim().length > 0;
+  }
+
+  function selectionNeedsColorInfo(items) {
+    return items.some((p) => p.needsColorInfo);
+  }
+
+  function autoSelect(p) {
+    if (!p?.ccvProductId) return;
+    state.selectedIds.add(String(p.ccvProductId));
+  }
+
+  function getSelectedProducts() {
+    const all = Object.values(PRODUCTS);
+    return Array.from(state.selectedIds)
+      .map((id) => all.find((p) => String(p.ccvProductId || "") === String(id)))
+      .filter(Boolean);
+  }
+
+  function toAbs(pathOrUrl) {
+    const s = String(pathOrUrl || "");
+    if (!s) return "";
+    if (s.startsWith("http://") || s.startsWith("https://")) return s;
+    if (!s.startsWith("/")) return SHOP_BASE_URL + "/" + s;
+    return SHOP_BASE_URL + s;
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  function pulse(el) {
+    if (!el) return;
+    el.classList.remove("bw-pulse");
+    void el.offsetWidth;
+    el.classList.add("bw-pulse");
+    setTimeout(() => el.classList.remove("bw-pulse"), 450);
+  }
+
+  // ========= CSS =========
+  function injectStyles() {
+    if (document.getElementById("bwStyles")) return;
+
+    const css = `
+    .bw-wrap{ display:grid; grid-template-columns: 1fr 320px; gap:16px; align-items:start; }
+    @media (max-width: 980px){ .bw-wrap{ grid-template-columns: 1fr; } }
+
+    .bw-card{ background:#fff; border:1px solid #e9edf3; border-radius:18px; box-shadow:0 10px 24px rgba(16,24,40,.06); overflow:hidden; }
+    .bw-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px; }
+    .bw-title{ font-weight:950; font-size:18px; color:#0f172a; }
+    .bw-sub{ margin-top:4px; color:#64748b; font-size:13px; }
+    .bw-steps{ display:flex; gap:8px; }
+    .bw-step{ width:30px;height:30px;border-radius:12px; display:grid;place-items:center; border:1px solid #e5eaf3; font-weight:900; color:#64748b; background:#fff; }
+    .bw-step.is-on{ color:#0f172a; border-color:#cfe2ff; background:#eff6ff; }
+    .bw-progress{ height:8px; background:#f1f5f9; }
+    .bw-bar{ height:8px; background:#22c55e; }
+
+    .bw-body{ padding:18px; }
+    .bw-h{ font-weight:950; font-size:16px; color:#0f172a; margin-bottom:10px; }
+    .bw-sub2{ color:#64748b; font-size:13px; margin-bottom:12px; }
+
+    .bw-grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 640px){ .bw-grid2{ grid-template-columns: 1fr; } }
+    .bw-choice{ text-align:left; border:1px solid #e6edf7; border-radius:16px; padding:14px; background:#fff; cursor:pointer; box-shadow:0 8px 22px rgba(16,24,40,.06); }
+    .bw-choice.is-active{ border-color: rgba(34,197,94,.35); box-shadow:0 12px 28px rgba(16,24,40,.10); }
+    .bw-choiceTitle{ font-weight:950; color:#0f172a; }
+    .bw-choiceText{ color:#64748b; font-size:13px; margin-top:6px; }
+    .bw-pill{ display:inline-block; margin-top:10px; padding:6px 10px; border-radius:999px; background:#dcfce7; color:#166534; font-weight:900; font-size:12px; }
+    .bw-pill--blue{ background:#dbeafe; color:#1e40af; }
+
+    .bw-note{ margin-top:12px; border:1px solid #e5eaf3; background:#f8fafc; border-radius:14px; padding:12px; color:#475569; font-size:13px; }
+    .bw-ul{ margin:8px 0 0; padding-left:18px; }
+    .bw-ul li{ margin:4px 0; }
+
+    .bw-products{ display:grid; gap:10px; }
+
+    .bw-prod{ display:grid; grid-template-columns: 60px 1fr 54px; gap:12px; align-items:center; border:1px solid #e6edf7; border-radius:16px; padding:12px; background:#fff; box-shadow:0 8px 22px rgba(16,24,40,.06); }
+    .bw-prod.is-selected{ border-color:#d7e2f2; box-shadow:0 12px 26px rgba(16,24,40,.10); }
+    .bw-img{ width:60px;height:60px;border-radius:14px; border:1px solid #eef2f7; background:#f6f7fb; object-fit:contain; display:block; }
+    .bw-img--ph{ background:linear-gradient(135deg,#f1f5f9,#fff); }
+
+    .bw-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+    .bw-badge{ font-size:11px; font-weight:950; padding:5px 10px; border-radius:999px; background:#eff6ff; color:#1e40af; }
+    .bw-badge--price{ background:#f1f5f9; color:#0f172a; }
+
+    .bw-prodName{ font-weight:950; color:#0f172a; font-size:13.5px; line-height:1.2; }
+    .bw-prodNotes{ margin-top:6px; color:#64748b; font-size:12.5px; }
+    .bw-warn{ margin-top:8px; font-size:12px; font-weight:900; color:#9a3412; }
+
+    .bw-prodRight{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+    .bw-link{ font-size:12px; font-weight:900; color:#2563eb; text-decoration:none; }
+    .bw-link:hover{ text-decoration:underline; }
+
+    .bw-add{ width:40px;height:40px;border-radius:12px; border:0;background:#111;color:#fff; font-size:22px;line-height:1; cursor:pointer; display:grid;place-items:center; }
+    .bw-add:disabled{ opacity:.45; cursor:not-allowed; }
+    .bw-prod.is-selected .bw-add{ background:#e8eef7; color:#111; border:1px solid #d7e2f2; }
+
+    .bw-form{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 640px){ .bw-form{ grid-template-columns: 1fr; } }
+    .bw-field label{ display:block; font-size:12px; font-weight:900; color:#0f172a; margin-bottom:6px; }
+    .bw-field input{ width:100%; border:1px solid #e5eaf3; border-radius:14px; padding:12px 12px; outline:none; font-size:14px; }
+    .bw-field input:focus{ border-color:#cfe2ff; box-shadow:0 0 0 4px rgba(59,130,246,.12); }
+
+    .bw-details{ margin-top:12px; border:1px solid #e5eaf3; border-radius:14px; padding:10px 12px; background:#fff; }
+    .bw-details summary{ cursor:pointer; font-weight:950; color:#0f172a; }
+    .bw-detailsBody{ margin-top:10px; color:#475569; font-size:13px; }
+
+    .bw-footer{ padding:14px 18px; border-top:1px solid #eef2f7; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .bw-footerRight{ display:flex; gap:10px; }
+    .bw-btn{ height:42px; padding:0 14px; border-radius:14px; font-weight:950; cursor:pointer; border:1px solid #e5eaf3; background:#fff; color:#0f172a; }
+    .bw-btn:disabled{ opacity:.55; cursor:not-allowed; }
+    .bw-btn--ghost:hover{ background:#f6f8fc; }
+    .bw-btn--primary{ border:0; background:#22c55e; color:#fff; }
+    .bw-btn--full{ width:100%; }
+
+    .bw-side{ position:sticky; top:14px; }
+    @media (max-width: 980px){ .bw-side{ position:static; } }
+    .bw-sideCard{ background:#fff; border:1px solid #e9edf3; border-radius:18px; box-shadow:0 10px 24px rgba(16,24,40,.06); padding:16px; }
+    .bw-sideTitle{ font-weight:950; color:#0f172a; margin-bottom:10px; }
+    .bw-sideItems{ display:grid; gap:6px; margin-bottom:12px; }
+    .bw-sideItem{ color:#0f172a; font-size:13px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .bw-sideTag{ font-size:11px; font-weight:950; padding:4px 8px; border-radius:999px; background:#f1f5f9; color:#0f172a; }
+    .bw-sideEmpty{ color:#64748b; font-size:13px; }
+    .bw-sideHint{ margin-top:10px; color:#64748b; font-size:12.5px; }
+
+    .bw-mini{ border:1px solid #e5eaf3; background:#f8fafc; border-radius:14px; padding:10px; margin:10px 0 12px; }
+    .bw-miniRow{ display:flex; justify-content:space-between; gap:8px; color:#475569; font-size:12.5px; }
+    .bw-miniOk{ margin-top:8px; font-weight:950; color:#166534; font-size:12.5px; }
+    .bw-miniWarn{ margin-top:8px; font-weight:950; color:#9a3412; font-size:12.5px; }
+
+    .bw-pulse{ animation:bwPulse .45s ease; }
+    @keyframes bwPulse{ 0%{ transform:scale(1); } 50%{ transform:scale(1.01); } 100%{ transform:scale(1); } }
+    `;
+
+    const style = document.createElement("style");
+    style.id = "bwStyles";
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  // start
+  render();
+});
