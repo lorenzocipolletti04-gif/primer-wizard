@@ -1,8 +1,8 @@
 // =====================
-// PRIMER WIZARD app.js (UI v4: Snel bekijken modal + prijzen + 1 primaire selectie)
+// PRIMER WIZARD app.js (Complete UI v5: QuickView werkt + prijzen + 1 primaire selectie)
 // =====================
 
-console.log("Primer Wizard UI v4 loaded ✅");
+console.log("Primer Wizard UI v5 loaded ✅");
 
 // ===== Elements =====
 const wizardCard = document.getElementById("wizardCard");
@@ -28,7 +28,8 @@ const productList = document.getElementById("productList");
 const SHOP_ORIGIN = "https://www.lakopmaat.nl";
 const SHOP_BASE_URL = "https://www.lakopmaat.nl";
 
-// ===== Products (met afbeeldingen + prijzen) =====
+// ===== Products (images + prijzen) =====
+// Let op: prijzen zijn hardcoded strings. Pas ze aan als je wil.
 const PRODUCTS = {
   filler_1k: {
     key: "filler_1k",
@@ -142,10 +143,11 @@ let answers = {};
 let selectedProductIds = new Set();
 
 // =====================
-// Styles + modal container
+// Boot
 // =====================
 injectUiStyles();
 ensureQuickViewModal();
+renderStep();
 
 // =====================
 // UI helpers
@@ -217,7 +219,6 @@ function renderStep() {
 
 function selectOption(stepId, value) {
   answers[stepId] = value;
-
   if (stepId === "substrate") delete answers.goal;
 
   if (stepIndex < steps.length - 1) {
@@ -225,7 +226,6 @@ function selectOption(stepId, value) {
     renderStep();
     return;
   }
-
   renderAdvice();
 }
 
@@ -325,8 +325,8 @@ function buildAdvice(substrate, goal) {
 
 // =====================
 // Selection rules
-// - primair = best / alt / fast  => maar 1 tegelijk (radio)
-// - optioneel/tip => extra toegestaan
+// primair (best/alt/fast) => max 1 tegelijk
+// optioneel/tip => extra toegestaan
 // =====================
 function badgeType(label) {
   const s = String(label || "").toLowerCase();
@@ -337,7 +337,6 @@ function badgeType(label) {
   if (s.includes("tip")) return "tip";
   return "default";
 }
-
 function isPrimaryLabel(label) {
   const t = badgeType(label);
   return t === "best" || t === "alt" || t === "fast";
@@ -345,9 +344,7 @@ function isPrimaryLabel(label) {
 
 // Kies exact 1 primaire default: best > fast > alt
 function applyDefaultSelection(products) {
-  // als user al iets geselecteerd had: fix eventuele dubbele primaire selectie
   normalizePrimarySelection(products);
-
   if (selectedProductIds.size > 0) return;
 
   const primaries = products.filter((p) => p.ccvProductId && isPrimaryLabel(p.stepLabel));
@@ -368,7 +365,7 @@ function normalizePrimarySelection(products) {
   const selectedPrimaries = primaryIds.filter((id) => selectedProductIds.has(id));
   if (selectedPrimaries.length <= 1) return;
 
-  // houd er 1 over op prioriteit: best > fast > alt
+  // behoud er 1 op prioriteit: best > fast > alt
   const byId = new Map(products.map((p) => [String(p.ccvProductId || ""), p]));
   const scored = selectedPrimaries
     .map((id) => {
@@ -438,10 +435,7 @@ function renderUpsellCard(p) {
   const t = badgeType(p.stepLabel);
   const isPrimary = isPrimaryLabel(p.stepLabel);
 
-  const badgeMain = p.stepLabel
-    ? `<span class="pw-badge pw-badge--${t}">${escapeHtml(p.stepLabel)}</span>`
-    : "";
-
+  const badgeMain = p.stepLabel ? `<span class="pw-badge pw-badge--${t}">${escapeHtml(p.stepLabel)}</span>` : "";
   const badges = [
     badgeMain,
     p.brand ? `<span class="pw-badge pw-badge--meta">${escapeHtml(p.brand)}</span>` : "",
@@ -453,15 +447,14 @@ function renderUpsellCard(p) {
     : `<div class="pw-upsell-img pw-upsell-img--placeholder" aria-hidden="true"></div>`;
 
   const priceHtml = p.price ? `<div class="pw-price">${escapeHtml(p.price)}</div>` : "";
-
-  // snel bekijken knop (klein)
-  const quickBtn = url
-    ? `<button type="button" class="pw-quickbtn" data-quick="${escapeHtml(url)}">Snel bekijken</button>`
-    : "";
+  const quickBtn = url ? `<button type="button" class="pw-quickbtn">Snel bekijken</button>` : "";
 
   return `
-    <div class="pw-upsell-card ${selected ? "is-selected" : ""} ${t === "best" ? "is-best" : ""}" 
-         data-id="${escapeHtml(id)}" data-primary="${isPrimary ? "1" : "0"}">
+    <div class="pw-upsell-card ${selected ? "is-selected" : ""} ${t === "best" ? "is-best" : ""}"
+         data-id="${escapeHtml(id)}"
+         data-primary="${isPrimary ? "1" : "0"}"
+         data-url="${escapeHtml(url)}">
+
       ${img}
 
       <div class="pw-upsell-meta">
@@ -482,11 +475,30 @@ function renderUpsellCard(p) {
 }
 
 function bindUpsellEvents(products) {
-  // + / ✓ buttons
-  const addBtns = productList.querySelectorAll(".pw-upsell-add");
-  addBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const card = btn.closest(".pw-upsell-card");
+  if (!productList) return;
+
+  // Event delegation: werkt altijd (ook na re-render)
+  productList.onclick = (e) => {
+    const t = e.target;
+
+    // Snel bekijken
+    const quickBtn = t?.closest?.(".pw-quickbtn");
+    if (quickBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const card = quickBtn.closest(".pw-upsell-card");
+      const url = card?.getAttribute("data-url") || "";
+      if (url) openQuickView(url);
+      return;
+    }
+
+    // + / ✓ selectie
+    const addBtn = t?.closest?.(".pw-upsell-add");
+    if (addBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const card = addBtn.closest(".pw-upsell-card");
       const id = card?.getAttribute("data-id") || "";
       if (!id) return;
 
@@ -494,39 +506,20 @@ function bindUpsellEvents(products) {
 
       if (selectedProductIds.has(id)) {
         selectedProductIds.delete(id);
-        card.classList.remove("is-selected");
-        btn.textContent = "+";
       } else {
-        // als dit primair is: eerst alle andere primaire deselecten
         if (isPrimary) deselectOtherPrimaries(products, id);
-
         selectedProductIds.add(id);
-        card.classList.add("is-selected");
-        btn.textContent = "✓";
       }
 
-      // zorg altijd dat primair max 1 blijft
       normalizePrimarySelection(products);
-
-      // update UI van andere cards (primair radio effect)
       syncCardSelections();
       updateOrderButton();
-    });
-  });
+      return;
+    }
+  };
 
-  // snel bekijken
-  const quickBtns = productList.querySelectorAll(".pw-quickbtn");
-  quickBtns.forEach((b) => {
-    b.addEventListener("click", () => {
-      const url = b.getAttribute("data-quick");
-      if (!url) return;
-      openQuickView(toAbsoluteUrl(url));
-    });
-  });
-
-  // order
   const orderBtn = productList.querySelector("#pwOrderBtn");
-  if (orderBtn) orderBtn.addEventListener("click", () => bulkAddSelected(products));
+  if (orderBtn) orderBtn.onclick = () => bulkAddSelected(products);
 }
 
 function syncCardSelections() {
@@ -602,7 +595,7 @@ async function bulkAddSelected(products) {
 }
 
 // =====================
-// Quick view modal
+// Quick view modal (iframe)
 // =====================
 function ensureQuickViewModal() {
   if (document.getElementById("pwQuickView")) return;
@@ -627,9 +620,7 @@ function ensureQuickViewModal() {
 
   el.addEventListener("click", (e) => {
     const t = e.target;
-    if (t && t.getAttribute && t.getAttribute("data-qv-close") === "1") {
-      closeQuickView();
-    }
+    if (t && t.getAttribute && t.getAttribute("data-qv-close") === "1") closeQuickView();
   });
 
   document.addEventListener("keydown", (e) => {
@@ -643,6 +634,7 @@ function openQuickView(url) {
 
   const frame = wrap.querySelector(".pw-qv__frame");
   const openA = wrap.querySelector(".pw-qv__open");
+
   if (frame) frame.src = url;
   if (openA) openA.href = url;
 
@@ -683,13 +675,12 @@ function escapeHtml(s) {
 }
 
 // =====================
-// Styles (embedded)
+// Styles
 // =====================
 function injectUiStyles() {
-  if (document.getElementById("pwUiV4Styles")) return;
+  if (document.getElementById("pwUiV5Styles")) return;
 
   const css = `
-  /* Panel - op mobiel breder (rand-tot-rand gevoel) */
   .pw-panel{
     background:#fff;
     border:1px solid #e9edf3;
@@ -749,7 +740,6 @@ function injectUiStyles() {
     margin-bottom:8px;
   }
 
-  /* Badges duidelijker */
   .pw-badge{
     font-size:11px;
     font-weight:900;
@@ -804,7 +794,6 @@ function injectUiStyles() {
     gap:8px;
   }
 
-  /* Snel bekijken: klein en netjes */
   .pw-quickbtn{
     border:1px solid #e5eaf3;
     background:#fff;
@@ -956,7 +945,7 @@ function injectUiStyles() {
   `;
 
   const style = document.createElement("style");
-  style.id = "pwUiV4Styles";
+  style.id = "pwUiV5Styles";
   style.textContent = css;
   document.head.appendChild(style);
 }
@@ -968,6 +957,3 @@ backBtn?.addEventListener("click", goBack);
 resetBtn?.addEventListener("click", resetAll);
 resultBackBtn?.addEventListener("click", resultBack);
 startOverBtn?.addEventListener("click", resetAll);
-
-// start
-renderStep();
