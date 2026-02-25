@@ -33,9 +33,9 @@ const PRODUCTS = {
     name: "CS 1K Hoogvullende primer",
     brand: "CS",
     code: "151.522",
-    url: "/nl/cs-1k-hoogvullende-primer",
+    url: "/nl/CS-1K-Hoog-vullende-primer",
     ccvProductId: "900611573",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399143/ProductPhotos/620/1436084591.png", // optioneel
+    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358538274.png",
   },
   plastic: {
     key: "plastic",
@@ -44,7 +44,7 @@ const PRODUCTS = {
     code: "145.986",
     url: "/nl/CS-Plastic-Primer-Transparant-400ml",
     ccvProductId: "900611528",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399150/ProductPhotos/620/2730127995.png",
+    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358537821.png",
   },
   epoxy_2k: {
     key: "epoxy_2k",
@@ -53,7 +53,7 @@ const PRODUCTS = {
     code: "159.158",
     url: "/nl/CS-2k-Epoxy-Fill-Primer",
     ccvProductId: "900611519",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399155/ProductPhotos/620/1063317503.png",
+    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358537773.png",
   },
   epoxy_1k: {
     key: "epoxy_1k",
@@ -71,7 +71,7 @@ const PRODUCTS = {
     code: "TSP 190",
     url: "/nl/Finixa-Etch-primer-grijs-400-ml",
     ccvProductId: "900588323",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399321/ProductPhotos/620/551904336.png",
+    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358424376.png",
   },
   zinc: {
     key: "zinc",
@@ -80,7 +80,7 @@ const PRODUCTS = {
     code: "TSP 410",
     url: "/nl/Finixa-Zinkspray-400-ml",
     ccvProductId: "900589553",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399329/ProductPhotos/620/3091737132.png",
+    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358433403.png",
   },
   gloves: {
     key: "gloves",
@@ -89,10 +89,9 @@ const PRODUCTS = {
     code: "",
     url: "/nl/Eurogloves-Soft-Nitrile",
     ccvProductId: "900590462",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399531/ProductPhotos/620/400505198.png",
+    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358441479.jpg",
   },
 };
-
 // ===== Steps =====
 const steps = [
   {
