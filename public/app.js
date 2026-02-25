@@ -1,5 +1,5 @@
 // =====================
-// PRIMER WIZARD app.js (bulk select + 1 knop toevoegen)
+// PRIMER WIZARD app.js (UI v2: cards zoals foto 2/3 + groene CTA tekst)
 // =====================
 
 // ===== Elements =====
@@ -35,6 +35,7 @@ const PRODUCTS = {
     code: "151.522",
     url: "/nl/cs-1k-hoogvullende-primer",
     ccvProductId: "900611573",
+    image: "", // optioneel
   },
   plastic: {
     key: "plastic",
@@ -43,6 +44,7 @@ const PRODUCTS = {
     code: "145.986",
     url: "/nl/CS-Plastic-Primer-Transparant-400ml",
     ccvProductId: "900611528",
+    image: "",
   },
   epoxy_2k: {
     key: "epoxy_2k",
@@ -51,14 +53,16 @@ const PRODUCTS = {
     code: "159.158",
     url: "/nl/CS-2k-Epoxy-Fill-Primer",
     ccvProductId: "900611519",
+    image: "",
   },
   epoxy_1k: {
     key: "epoxy_1k",
     name: "CS 1K Epoxy Primer - 400ml",
     brand: "CS",
     code: "151.958",
-    url: "/nl/CS-1K-Epoxy-Primer-400ml",
+    url: "/nl/CS-1K-Epoxy-Primer-400-ml",
     ccvProductId: "900611507",
+    image: "",
   },
   etch: {
     key: "etch",
@@ -67,6 +71,7 @@ const PRODUCTS = {
     code: "TSP 190",
     url: "/nl/Finixa-Etch-primer-grijs-400-ml",
     ccvProductId: "900588323",
+    image: "",
   },
   zinc: {
     key: "zinc",
@@ -75,6 +80,7 @@ const PRODUCTS = {
     code: "TSP 410",
     url: "/nl/Finixa-Zinkspray-400-ml",
     ccvProductId: "900589553",
+    image: "",
   },
   gloves: {
     key: "gloves",
@@ -83,6 +89,7 @@ const PRODUCTS = {
     code: "",
     url: "/nl/Eurogloves-Soft-Nitrile",
     ccvProductId: "900590462",
+    image: "",
   },
 };
 
@@ -123,35 +130,39 @@ const steps = [
 
 let stepIndex = 0;
 let answers = {};
-
-// ===== selectie state voor bulk toevoegen =====
 let selectedProductIds = new Set();
+let orderQty = 1; // globale hoeveelheid (zoals min/plus in screenshot)
+
+// =====================
+// Inject CSS (zodat jij 1 bestand hebt)
+// =====================
+injectUiStyles();
 
 // =====================
 // UI helpers
 // =====================
 function showWizard() {
-  resultCard.classList.add("hidden");
-  wizardCard.classList.remove("hidden");
+  resultCard?.classList.add("hidden");
+  wizardCard?.classList.remove("hidden");
 }
 
 function showResult() {
-  wizardCard.classList.add("hidden");
-  resultCard.classList.remove("hidden");
+  wizardCard?.classList.add("hidden");
+  resultCard?.classList.remove("hidden");
 }
 
 function updateTopBar() {
   const total = steps.length;
   const current = stepIndex + 1;
 
-  stepText.textContent = `Stap ${current} van ${total}`;
-  stepHint.textContent = steps[stepIndex].hint || "";
+  if (stepText) stepText.textContent = `Stap ${current} van ${total}`;
+  if (stepHint) stepHint.textContent = steps[stepIndex].hint || "";
 
   const pct = Math.round((current / total) * 100);
-  progressBar.style.width = pct + "%";
-  progressLabel.textContent = pct + "%";
+  if (progressBar) progressBar.style.width = pct + "%";
+  if (progressLabel) progressLabel.textContent = pct + "%";
 
-  backBtn.disabled = stepIndex === 0;
+  if (backBtn) backBtn.disabled = stepIndex === 0;
 }
 
 function getCurrentOptions() {
@@ -166,16 +177,17 @@ function renderStep() {
   updateTopBar();
 
   const step = steps[stepIndex];
-  questionEl.textContent = step.title;
+  if (questionEl) questionEl.textContent = step.title;
 
   const opts = getCurrentOptions();
+  if (!optionsEl) return;
   optionsEl.innerHTML = "";
 
   if (!opts.length) {
     optionsEl.innerHTML = `
-      <div class="product">
-        <div class="productName">Geen opties beschikbaar</div>
-        <div class="productNotes">Ga terug en kies eerst een ondergrond.</div>
+      <div class="pw-empty">
+        <div class="pw-empty__title">Geen opties beschikbaar</div>
+        <div class="pw-empty__text">Ga terug en kies eerst een ondergrond.</div>
       </div>`;
     return;
   }
@@ -221,6 +233,7 @@ function resetAll() {
   stepIndex = 0;
   answers = {};
   selectedProductIds = new Set();
+  orderQty = 1;
   renderStep();
 }
 
@@ -245,6 +258,7 @@ function buildAdvice(substrate, goal) {
       notes: notes || "",
       url: p.url || "",
       ccvProductId: p.ccvProductId || "",
+      image: p.image || "",
     });
   };
 
@@ -273,8 +287,7 @@ function buildAdvice(substrate, goal) {
       return out;
     }
 
-    out.summary =
-      "Wil je meer opbouw en krassen wegwerken? Dan is een hoogvullende primer de juiste keuze.";
+    out.summary = "Wil je meer opbouw en krassen wegwerken? Dan is een hoogvullende primer de juiste keuze.";
     push(PRODUCTS.filler_1k, "Beste keuze", "Meer vulling/opbouw voor een strak eindresultaat.");
     push(PRODUCTS.gloves, "Tip", "Handschoenen houden de ondergrond vetvrij.");
     return out;
@@ -314,15 +327,15 @@ function shouldDefaultSelect(stepLabel) {
 }
 
 // =====================
-// Render advice (checkbox + bulk button)
+// Render advice (UI v2: cards zoals foto 2/3)
 // =====================
 function renderAdvice() {
   showResult();
-  resultSummary.textContent = "Advies maken…";
-  productList.innerHTML = "";
+  if (resultSummary) resultSummary.textContent = "Advies maken…";
+  if (productList) productList.innerHTML = "";
 
   const data = buildAdvice(answers.substrate, answers.goal);
-  resultSummary.textContent = data.summary || "";
+  if (resultSummary) resultSummary.textContent = data.summary || "";
 
   const products = data.products || [];
 
@@ -335,111 +348,180 @@ function renderAdvice() {
     });
   }
 
+  // Filter: in “aankoop compleet” tonen we meestal géén “Tip” als product-CTA,
+  // maar jij wilt handschoenen vaak wél tonen; dus we tonen alles en labelen.
+  const cardsHtml = products
+    .map((p) => renderUpsellCard(p))
+    .join("");
+
+  if (!productList) return;
+
   productList.innerHTML = `
-    <div class="pickList">
-      ${products
-        .map((p, idx) => {
-          const id = p.ccvProductId ? String(p.ccvProductId) : "";
-          const checked = id && selectedProductIds.has(id) ? "checked" : "";
-          const disabled = !id ? "disabled" : "";
-          const cls = idx === 0 ? "product recommended pickRow" : "product pickRow";
-          const url = p.url ? toAbsoluteUrl(p.url) : "";
+    <div class="pw-panel">
+      <div class="pw-section-title">Maak je aankoop compleet</div>
 
-          const badges = [
-            p.stepLabel ? `<span class="badge">${escapeHtml(p.stepLabel)}</span>` : "",
-            p.brand ? `<span class="badge">${escapeHtml(p.brand)}</span>` : "",
-            p.code ? `<span class="badge">${escapeHtml(p.code)}</span>` : "",
-          ].join("");
+      <div class="pw-upsell-list">
+        ${cardsHtml || `<div class="pw-empty"><div class="pw-empty__title">Geen producten</div></div>`}
+      </div>
 
-          return `
-            <label class="${cls}">
-              <div class="pickLeft">
-                <input class="pickCheck" type="checkbox"
-                  data-ccv-id="${escapeHtml(id)}"
-                  ${checked} ${disabled} />
-              </div>
+      <div class="pw-orderbar">
+        <div class="pw-qtyrow">
+          <div class="pw-qty">
+            <button type="button" class="pw-qty-btn" data-qty="minus" aria-label="Minder">−</button>
+            <div class="pw-qty-val" id="pwQtyVal">${orderQty}</div>
+            <button type="button" class="pw-qty-btn" data-qty="plus" aria-label="Meer">+</button>
+          </div>
 
-              <div class="pickBody">
-                <div class="productHead">${badges}</div>
-                <div class="productName">${escapeHtml(p.name || "")}</div>
-                ${p.notes ? `<div class="productNotes">${escapeHtml(p.notes)}</div>` : ""}
-                <div class="pickLinks">
-                  ${url ? `<a class="viewBtn" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Bekijk product</a>` : ""}
-                </div>
-              </div>
-            </label>
-          `;
-        })
-        .join("")}
-    </div>
+          <button type="button" class="pw-order-button" id="pwOrderBtn">
+            Bestellen
+          </button>
+        </div>
 
-    <div class="bulkBar">
-      <div class="bulkText" id="bulkText">Selecteer producten om toe te voegen.</div>
-      <button class="bulkBtn" id="bulkAddBtn" type="button">Voeg geselecteerde producten toe aan winkelwagen</button>
+        <button type="button" class="pw-helpbtn" id="pwHelpBtn">
+          Kunt u de kleurcode niet vinden?
+        </button>
+      </div>
     </div>
   `;
 
-  bindPickList(products);
-  updateBulkBar();
+  bindUpsellEvents(products);
+  updateOrderButton();
 }
 
-function bindPickList(products) {
-  const checks = productList.querySelectorAll(".pickCheck");
-  checks.forEach((c) => {
-    c.addEventListener("change", () => {
-      const id = c.getAttribute("data-ccv-id") || "";
+function renderUpsellCard(p) {
+  const id = p.ccvProductId ? String(p.ccvProductId) : "";
+  const selected = id && selectedProductIds.has(id);
+  const url = p.url ? toAbsoluteUrl(p.url) : "";
+
+  const badges = [
+    p.stepLabel ? `<span class="pw-badge">${escapeHtml(p.stepLabel)}</span>` : "",
+    p.brand ? `<span class="pw-badge">${escapeHtml(p.brand)}</span>` : "",
+    p.code ? `<span class="pw-badge">${escapeHtml(p.code)}</span>` : "",
+  ].join("");
+
+  const img = p.image
+    ? `<img class="pw-upsell-img" src="${escapeHtml(toAbsoluteUrl(p.image))}" alt="" loading="lazy">`
+    : `<div class="pw-upsell-img pw-upsell-img--placeholder" aria-hidden="true"></div>`;
+
+  return `
+    <div class="pw-upsell-card ${selected ? "is-selected" : ""}" data-id="${escapeHtml(id)}">
+      ${img}
+
+      <div class="pw-upsell-meta">
+        <div class="pw-upsell-badges">${badges}</div>
+        <div class="pw-upsell-name" title="${escapeHtml(p.name || "")}">${escapeHtml(p.name || "")}</div>
+        ${p.notes ? `<div class="pw-upsell-notes">${escapeHtml(p.notes)}</div>` : ""}
+        ${url ? `<a class="pw-viewlink" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Bekijk product</a>` : ""}
+      </div>
+
+      <button type="button" class="pw-upsell-add" ${id ? "" : "disabled"} aria-label="Toevoegen">
+        ${selected ? "✓" : "+"}
+      </button>
+    </div>
+  `;
+}
+
+function bindUpsellEvents(products) {
+  // + / ✓ buttons
+  const addBtns = productList.querySelectorAll(".pw-upsell-add");
+  addBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const card = btn.closest(".pw-upsell-card");
+      const id = card?.getAttribute("data-id") || "";
       if (!id) return;
 
-      if (c.checked) selectedProductIds.add(id);
-      else selectedProductIds.delete(id);
+      if (selectedProductIds.has(id)) {
+        selectedProductIds.delete(id);
+        card.classList.remove("is-selected");
+        btn.textContent = "+";
+      } else {
+        selectedProductIds.add(id);
+        card.classList.add("is-selected");
+        btn.textContent = "✓";
+      }
 
-      updateBulkBar();
+      updateOrderButton();
     });
   });
 
-  const bulkBtn = productList.querySelector("#bulkAddBtn");
-  if (bulkBtn) bulkBtn.addEventListener("click", () => bulkAddSelected(products));
+  // qty control
+  const qtyBtns = productList.querySelectorAll(".pw-qty-btn");
+  qtyBtns.forEach((b) => {
+    b.addEventListener("click", () => {
+      const mode = b.getAttribute("data-qty");
+      if (mode === "minus") orderQty = Math.max(1, orderQty - 1);
+      if (mode === "plus") orderQty = Math.min(99, orderQty + 1);
+      const v = productList.querySelector("#pwQtyVal");
+      if (v) v.textContent = String(orderQty);
+    });
+  });
+
+  // order button (bulk add)
+  const orderBtn = productList.querySelector("#pwOrderBtn");
+  if (orderBtn) orderBtn.addEventListener("click", () => bulkAddSelected(products));
+
+  // help button (placeholder)
+  const helpBtn = productList.querySelector("#pwHelpBtn");
+  if (helpBtn) {
+    helpBtn.addEventListener("click", () => {
+      // Hier kun je later een modal/link aan hangen
+      alert("Tip: je kunt de kleurcode meestal vinden op het typeplaatje, deurstijl of onder de motorkap.");
+    });
+  }
 }
 
-function updateBulkBar() {
-  const bulkText = productList.querySelector("#bulkText");
-  const bulkBtn = productList.querySelector("#bulkAddBtn");
-  if (!bulkText || !bulkBtn) return;
+function updateOrderButton() {
+  const btn = productList?.querySelector("#pwOrderBtn");
+  if (!btn) return;
 
   const count = selectedProductIds.size;
-  bulkText.textContent = count === 0 ? "Selecteer producten om toe te voegen." : `${count} product(en) geselecteerd`;
-  bulkBtn.disabled = count === 0;
+
+  if (count <= 0) {
+    btn.textContent = "Bestellen";
+    btn.disabled = true;
+    btn.classList.add("is-disabled");
+    return;
+  }
+
+  btn.disabled = false;
+  btn.classList.remove("is-disabled");
+
+  if (count === 1) btn.textContent = "Bestellen";
+  else btn.textContent = `${count} producten bestellen`;
 }
 
+// =====================
+// Bulk add to cart
+// =====================
 async function bulkAddSelected(products) {
-  const bulkBtn = productList.querySelector("#bulkAddBtn");
-  if (!bulkBtn) return;
+  const btn = productList?.querySelector("#pwOrderBtn");
+  if (!btn) return;
 
   const selected = products
     .filter((p) => p.ccvProductId && selectedProductIds.has(String(p.ccvProductId)))
     .map((p) => ({
       productId: String(p.ccvProductId),
-      quantity: 1,
+      quantity: orderQty,
       shopUrl: toAbsoluteUrl(p.url),
     }));
 
   if (!selected.length) return;
 
-  const oldText = bulkBtn.textContent;
-  bulkBtn.disabled = true;
-  bulkBtn.textContent = "Toevoegen…";
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Toevoegen…";
 
-  // Voeg 1-voor-1 toe (xajax/CCV is stabieler met kleine interval)
   for (let i = 0; i < selected.length; i++) {
     window.parent.postMessage({ type: "LOM_ADD_TO_CART", payload: selected[i] }, SHOP_ORIGIN);
     await new Promise((r) => setTimeout(r, 350));
   }
 
-  bulkBtn.textContent = "Toegevoegd ✓";
+  btn.textContent = "Toegevoegd ✓";
   setTimeout(() => {
-    bulkBtn.textContent = oldText;
-    bulkBtn.disabled = false;
-  }, 1200);
+    btn.textContent = oldText;
+    btn.disabled = false;
+    updateOrderButton();
+  }, 1100);
 }
 
 // =====================
@@ -459,6 +541,174 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+// =====================
+// Styles (embedded)
+// =====================
+function injectUiStyles() {
+  if (document.getElementById("pwUiV2Styles")) return;
+
+  const css = `
+  .pw-panel{
+    background:#fff;
+    border:1px solid #e9edf3;
+    border-radius:16px;
+    padding:18px;
+  }
+  .pw-section-title{
+    font-weight:800;
+    font-size:16px;
+    margin:0 0 12px;
+    color:#0f172a;
+  }
+  .pw-upsell-list{ display:grid; gap:12px; margin-top:10px; }
+  .pw-upsell-card{
+    display:grid;
+    grid-template-columns:56px 1fr 44px;
+    align-items:center;
+    gap:12px;
+    border:1px solid #eef2f7;
+    border-radius:14px;
+    padding:12px;
+    background:#fff;
+    box-shadow:0 6px 18px rgba(16,24,40,.06);
+  }
+  .pw-upsell-card.is-selected{
+    border-color:#d7e2f2;
+    box-shadow:0 10px 22px rgba(16,24,40,.08);
+  }
+  .pw-upsell-img{
+    width:56px; height:56px; border-radius:12px;
+    background:#f6f7fb;
+    border:1px solid #eef2f7;
+    object-fit:contain;
+  }
+  .pw-upsell-img--placeholder{ display:block; }
+  .pw-upsell-meta{ min-width:0; }
+  .pw-upsell-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+  .pw-badge{
+    font-size:12px;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid #e5eaf3;
+    color:#0f172a;
+    background:#fff;
+    white-space:nowrap;
+  }
+  .pw-upsell-name{
+    font-weight:800;
+    font-size:13px;
+    line-height:1.2;
+    margin:0 0 6px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    color:#0f172a;
+  }
+  .pw-upsell-notes{
+    font-size:12px;
+    color:#64748b;
+    margin:0 0 6px;
+  }
+  .pw-viewlink{
+    font-size:12px;
+    font-weight:700;
+    color:#2563eb;
+    text-decoration:none;
+  }
+  .pw-viewlink:hover{ text-decoration:underline; }
+
+  .pw-upsell-add{
+    width:40px; height:40px;
+    border-radius:10px;
+    border:0;
+    background:#111;
+    color:#fff;
+    font-size:22px;
+    line-height:1;
+    cursor:pointer;
+    display:grid;
+    place-items:center;
+  }
+  .pw-upsell-add:disabled{
+    opacity:.45;
+    cursor:not-allowed;
+  }
+  .pw-upsell-card.is-selected .pw-upsell-add{
+    background:#e8eef7;
+    color:#111;
+    border:1px solid #d7e2f2;
+  }
+
+  .pw-orderbar{ margin-top:14px; display:grid; gap:10px; }
+  .pw-qtyrow{ display:grid; grid-template-columns:140px 1fr; gap:12px; align-items:center; }
+  .pw-qty{
+    display:grid;
+    grid-template-columns:44px 52px 44px;
+    height:44px;
+    border:1px solid #e9edf3;
+    border-radius:12px;
+    overflow:hidden;
+    background:#fff;
+  }
+  .pw-qty button{
+    border:0; background:#fff; font-size:18px; cursor:pointer;
+  }
+  .pw-qty button:hover{ background:#f3f6fb; }
+  .pw-qty-val{
+    display:grid;
+    place-items:center;
+    font-weight:800;
+    color:#0f172a;
+    border-left:1px solid #e9edf3;
+    border-right:1px solid #e9edf3;
+  }
+
+  .pw-order-button{
+    height:44px;
+    border:0;
+    border-radius:12px;
+    background:#22c55e;
+    color:#fff;
+    font-weight:900;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+  }
+  .pw-order-button.is-disabled{
+    opacity:.55;
+    cursor:not-allowed;
+  }
+
+  .pw-helpbtn{
+    height:44px;
+    border-radius:12px;
+    border:1px solid #e9edf3;
+    background:#fff;
+    font-weight:800;
+    color:#0f172a;
+    cursor:pointer;
+  }
+  .pw-helpbtn:hover{ background:#f6f8fc; }
+
+  .pw-empty{
+    border:1px dashed #dbe4f2;
+    border-radius:14px;
+    padding:12px;
+    color:#64748b;
+    background:#fff;
+  }
+  .pw-empty__title{ font-weight:800; color:#0f172a; margin-bottom:6px; }
+  .pw-empty__text{ font-size:13px; }
+  `;
+
+  const style = document.createElement("style");
+  style.id = "pwUiV2Styles";
+  style.textContent = css;
+  document.head.appendChild(style);
 }
 
 // =====================
