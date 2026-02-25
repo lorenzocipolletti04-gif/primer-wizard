@@ -387,6 +387,17 @@ function bindAddToCartButtons() {
   });
 }
 
+
+window.parent.postMessage({ type:"LOM_ADD_TO_CART", payload:{...}}, SHOP_ORIGIN);
+
+// extra: vraag parent om pas NA 600ms de minicart te refreshen/openen
+setTimeout(() => {
+  window.parent.postMessage({ type:"LOM_REFRESH_MINICART" }, SHOP_ORIGIN);
+}, 600);
+
+
+
+
 // optioneel: feedback van parent (als je dat later bouwt)
 window.addEventListener("message", (event) => {
   if (event.origin !== "https://www.lakopmaat.nl" && event.origin !== "https://lakopmaat.nl") return;
