@@ -1,5 +1,5 @@
 // =====================
-// PRIMER WIZARD app.js (UI v2: cards zoals foto 2/3 + groene CTA tekst)
+// PRIMER WIZARD app.js (UI v2: cards zoals foto 2/3 + 1 groene CTA, geen qty/help)
 // =====================
 
 // ===== Elements =====
@@ -60,7 +60,7 @@ const PRODUCTS = {
     name: "CS 1K Epoxy Primer - 400ml",
     brand: "CS",
     code: "151.958",
-    url: "/nl/CS-1K-Epoxy-Primer-400-ml",
+    url: "/nl/CS-1K-Epoxy-Primer-400ml",
     ccvProductId: "900611507",
     image: "",
   },
@@ -131,7 +131,6 @@ const steps = [
 let stepIndex = 0;
 let answers = {};
 let selectedProductIds = new Set();
-let orderQty = 1; // globale hoeveelheid (zoals min/plus in screenshot)
 
 // =====================
 // Inject CSS (zodat jij 1 bestand hebt)
@@ -233,7 +232,6 @@ function resetAll() {
   stepIndex = 0;
   answers = {};
   selectedProductIds = new Set();
-  orderQty = 1;
   renderStep();
 }
 
@@ -327,7 +325,7 @@ function shouldDefaultSelect(stepLabel) {
 }
 
 // =====================
-// Render advice (UI v2: cards zoals foto 2/3)
+// Render advice (cards + 1 CTA)
 // =====================
 function renderAdvice() {
   showResult();
@@ -348,11 +346,7 @@ function renderAdvice() {
     });
   }
 
-  // Filter: in “aankoop compleet” tonen we meestal géén “Tip” als product-CTA,
-  // maar jij wilt handschoenen vaak wél tonen; dus we tonen alles en labelen.
-  const cardsHtml = products
-    .map((p) => renderUpsellCard(p))
-    .join("");
+  const cardsHtml = products.map(renderUpsellCard).join("");
 
   if (!productList) return;
 
@@ -365,21 +359,7 @@ function renderAdvice() {
       </div>
 
       <div class="pw-orderbar">
-        <div class="pw-qtyrow">
-          <div class="pw-qty">
-            <button type="button" class="pw-qty-btn" data-qty="minus" aria-label="Minder">−</button>
-            <div class="pw-qty-val" id="pwQtyVal">${orderQty}</div>
-            <button type="button" class="pw-qty-btn" data-qty="plus" aria-label="Meer">+</button>
-          </div>
-
-          <button type="button" class="pw-order-button" id="pwOrderBtn">
-            Bestellen
-          </button>
-        </div>
-
-        <button type="button" class="pw-helpbtn" id="pwHelpBtn">
-          Kunt u de kleurcode niet vinden?
-        </button>
+        <button type="button" class="pw-order-button" id="pwOrderBtn">Bestellen</button>
       </div>
     </div>
   `;
@@ -422,8 +402,8 @@ function renderUpsellCard(p) {
 }
 
 function bindUpsellEvents(products) {
-  // + / ✓ buttons
   const addBtns = productList.querySelectorAll(".pw-upsell-add");
+
   addBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       const card = btn.closest(".pw-upsell-card");
@@ -444,30 +424,8 @@ function bindUpsellEvents(products) {
     });
   });
 
-  // qty control
-  const qtyBtns = productList.querySelectorAll(".pw-qty-btn");
-  qtyBtns.forEach((b) => {
-    b.addEventListener("click", () => {
-      const mode = b.getAttribute("data-qty");
-      if (mode === "minus") orderQty = Math.max(1, orderQty - 1);
-      if (mode === "plus") orderQty = Math.min(99, orderQty + 1);
-      const v = productList.querySelector("#pwQtyVal");
-      if (v) v.textContent = String(orderQty);
-    });
-  });
-
-  // order button (bulk add)
   const orderBtn = productList.querySelector("#pwOrderBtn");
   if (orderBtn) orderBtn.addEventListener("click", () => bulkAddSelected(products));
-
-  // help button (placeholder)
-  const helpBtn = productList.querySelector("#pwHelpBtn");
-  if (helpBtn) {
-    helpBtn.addEventListener("click", () => {
-      // Hier kun je later een modal/link aan hangen
-      alert("Tip: je kunt de kleurcode meestal vinden op het typeplaatje, deurstijl of onder de motorkap.");
-    });
-  }
 }
 
 function updateOrderButton() {
@@ -491,7 +449,7 @@ function updateOrderButton() {
 }
 
 // =====================
-// Bulk add to cart
+// Bulk add to cart (quantity altijd 1)
 // =====================
 async function bulkAddSelected(products) {
   const btn = productList?.querySelector("#pwOrderBtn");
@@ -501,7 +459,7 @@ async function bulkAddSelected(products) {
     .filter((p) => p.ccvProductId && selectedProductIds.has(String(p.ccvProductId)))
     .map((p) => ({
       productId: String(p.ccvProductId),
-      quantity: orderQty,
+      quantity: 1,
       shopUrl: toAbsoluteUrl(p.url),
     }));
 
@@ -641,31 +599,9 @@ function injectUiStyles() {
     border:1px solid #d7e2f2;
   }
 
-  .pw-orderbar{ margin-top:14px; display:grid; gap:10px; }
-  .pw-qtyrow{ display:grid; grid-template-columns:140px 1fr; gap:12px; align-items:center; }
-  .pw-qty{
-    display:grid;
-    grid-template-columns:44px 52px 44px;
-    height:44px;
-    border:1px solid #e9edf3;
-    border-radius:12px;
-    overflow:hidden;
-    background:#fff;
-  }
-  .pw-qty button{
-    border:0; background:#fff; font-size:18px; cursor:pointer;
-  }
-  .pw-qty button:hover{ background:#f3f6fb; }
-  .pw-qty-val{
-    display:grid;
-    place-items:center;
-    font-weight:800;
-    color:#0f172a;
-    border-left:1px solid #e9edf3;
-    border-right:1px solid #e9edf3;
-  }
-
+  .pw-orderbar{ margin-top:14px; }
   .pw-order-button{
+    width:100%;
     height:44px;
     border:0;
     border-radius:12px;
@@ -682,17 +618,6 @@ function injectUiStyles() {
     opacity:.55;
     cursor:not-allowed;
   }
-
-  .pw-helpbtn{
-    height:44px;
-    border-radius:12px;
-    border:1px solid #e9edf3;
-    background:#fff;
-    font-weight:800;
-    color:#0f172a;
-    cursor:pointer;
-  }
-  .pw-helpbtn:hover{ background:#f6f8fc; }
 
   .pw-empty{
     border:1px dashed #dbe4f2;
