@@ -1,8 +1,11 @@
 // =====================
-// PRIMER WIZARD app.js (UI v6: Quick View zonder iframe (CSP-proof) + prijzen + 1 primaire selectie)
+// PRIMER WIZARD app.js (UI v7)
+// - Wizard vragen → haalt advies + producten uit D1 via /api/advice
+// - Quick View modal (CSP-proof)
+// - Bulk add-to-cart via postMessage naar CCVShop
 // =====================
 
-console.log("Primer Wizard UI v6 loaded ✅");
+console.log("Primer Wizard UI v7 loaded ✅");
 
 // ===== Elements =====
 const wizardCard = document.getElementById("wizardCard");
@@ -28,119 +31,11 @@ const productList = document.getElementById("productList");
 const SHOP_ORIGIN = "https://www.lakopmaat.nl";
 const SHOP_BASE_URL = "https://www.lakopmaat.nl";
 
-// ===== Products (afbeeldingen + prijzen) =====
-// Let op: prijzen zijn hardcoded. Als je prijzen wijzigt op de site, moet je hier ook updaten.
-const PRODUCTS = {
-  filler_1k: {
-    key: "filler_1k",
-    name: "CS 1K Hoog vullende primer",
-    brand: "CS",
-    code: "151.522",
-    url: "/nl/CS-1K-Hoog-vullende-primer",
-    ccvProductId: "900611573",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358538274.png",
-    price: "€ 21,49",
-  },
-  plastic: {
-    key: "plastic",
-    name: "CS Plastic Primer Transparant - 400ml",
-    brand: "CS",
-    code: "145.986",
-    url: "/nl/CS-Plastic-Primer-Transparant-400ml",
-    ccvProductId: "900611528",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358537821.png",
-    price: "€ 12,17",
-  },
-  epoxy_2k: {
-    key: "epoxy_2k",
-    name: "CS 2K Epoxy Fill Primer",
-    brand: "CS",
-    code: "159.158",
-    url: "/nl/CS-2k-Epoxy-Fill-Primer",
-    ccvProductId: "900611519",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358537773.png",
-    price: "€ 32,50",
-  },
-  epoxy_1k: {
-    key: "epoxy_1k",
-    name: "CS 1K Epoxy Primer - 400ml",
-    brand: "CS",
-    code: "151.958",
-    url: "/nl/CS-1K-Epoxy-Primer-400ml",
-    ccvProductId: "900611507",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358537689.png",
-    price: "€ 15,20",
-  },
-  etch: {
-    key: "etch",
-    name: "Finixa Etch primer grijs - 400 ml",
-    brand: "Finixa",
-    code: "TSP 190",
-    url: "/nl/Finixa-Etch-primer-grijs-400-ml",
-    ccvProductId: "900588323",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358424376.png",
-    price: "€ 13,99",
-  },
-  zinc: {
-    key: "zinc",
-    name: "Finixa Zinkspray - 400 ml",
-    brand: "Finixa",
-    code: "TSP 410",
-    url: "/nl/Finixa-Zinkspray-400-ml",
-    ccvProductId: "900589553",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358433403.png",
-    price: "€ 12,49",
-  },
-  gloves: {
-    key: "gloves",
-    name: "Eurogloves Soft Nitrile - 100 stuks",
-    brand: "Eurogloves",
-    code: "",
-    url: "/nl/Eurogloves-Soft-Nitrile",
-    ccvProductId: "900590462",
-    image: "https://www.lakopmaat.nl//Files/10/399000/399149/ProductPhotos/620/2358441479.jpg",
-    price: "€ 15,25",
-  },
-};
-
-// ===== Steps =====
-const steps = [
-  {
-    id: "substrate",
-    title: "Welke ondergrond heb je?",
-    hint: "Kies de ondergrond waarop je gaat primeren.",
-    options: [
-      { label: "Blank metaal (staal/verzinkt/aluminium)", value: "blank_metaal" },
-      { label: "Kunststof / plastic", value: "kunststof" },
-      { label: "Bestaande lak (geschuurd)", value: "bestaande_lak" },
-      { label: "Plamuur / polyester filler", value: "plamuur" },
-    ],
-  },
-  {
-    id: "goal",
-    title: "Wat wil je vooral bereiken?",
-    hint: "Dit bepaalt welke primer(s) je nodig hebt.",
-    optionsMap: {
-      blank_metaal: [
-        { label: "Maximale hechting + roestbescherming", value: "max_bescherming" },
-        { label: "Snelle spotrepair (kleine plek)", value: "spotrepair" },
-      ],
-      kunststof: [{ label: "Hechting op kunststof (adhesion promoter)", value: "hechting_kunststof" }],
-      bestaande_lak: [
-        { label: "Egaliseren / schuurgrond maken", value: "egaliseren" },
-        { label: "Vullen (meer opbouw / krassen weg)", value: "vullen" },
-      ],
-      plamuur: [
-        { label: "Vullen en strak schuren", value: "vullen_plamuur" },
-        { label: "Snelle basislaag (kleine plek)", value: "spotrepair_plamuur" },
-      ],
-    },
-  },
-];
-
+// ===== State =====
 let stepIndex = 0;
 let answers = {};
 let selectedProductIds = new Set();
+let lastAdviceProducts = [];
 
 // Quick view state
 let quickViewProduct = null;
@@ -150,6 +45,88 @@ let quickViewProduct = null;
 // =====================
 injectUiStyles();
 ensureQuickViewModal();
+renderStep();
+
+// =====================
+// Wizard steps (dynamisch)
+// =====================
+function getFlowSteps() {
+  // Stap 1: hoofdgroep
+  const flow = [
+    {
+      id: "group",
+      title: "Waarop ga je primeren?",
+      hint: "Kies de ondergrond. Daarna stellen we 1–2 korte vervolgvragen.",
+      options: [
+        { label: "Blank metaal", value: "metaal" },
+        { label: "Kunststof / plastic", value: "kunststof" },
+        { label: "Bestaande lak (geschuurd)", value: "bestaande_lak" },
+        { label: "Plamuur / polyester", value: "plamuur" },
+      ],
+    },
+  ];
+
+  // Metaal subtype
+  if (answers.group === "metaal") {
+    flow.push({
+      id: "substrate",
+      title: "Welk metaal is het?",
+      hint: "Voor verschillende metalen is de beste basis anders.",
+      options: [
+        { label: "Staal (blank metaal)", value: "staal" },
+        { label: "Aluminium", value: "aluminium" },
+        { label: "Verzinkt (galvaniseerd)", value: "verzinkt" },
+      ],
+    });
+  }
+
+  // Doel / situatie
+  flow.push({
+    id: "situation",
+    title: "Wat is je doel?",
+    hint: "We kiezen op basis van bescherming vs snelheid of vulling.",
+    options: situationOptionsFor(answers.group),
+  });
+
+  return flow;
+}
+
+function situationOptionsFor(group) {
+  if (group === "metaal") {
+    return [
+      { label: "Maximale hechting + bescherming", value: "max_bescherming" },
+      { label: "Snelle spotrepair (kleine plek)", value: "spotrepair" },
+    ];
+  }
+  if (group === "kunststof") {
+    return [
+      { label: "Duurzame hechting (bumpers/trim)", value: "max_bescherming" },
+      { label: "Snelle spotrepair", value: "spotrepair" },
+    ];
+  }
+  if (group === "bestaande_lak") {
+    return [
+      { label: "Egaliseren / schuurgrond", value: "egaliseren" },
+      { label: "Vullen (meer opbouw/krassen weg)", value: "vullen" },
+    ];
+  }
+  if (group === "plamuur") {
+    return [
+      { label: "Vullen en strak schuren", value: "vullen" },
+      { label: "Snelle spotrepair", value: "spotrepair" },
+    ];
+  }
+  return [];
+}
+
+function resolveSubstrateId() {
+  // DB verwacht substrate_id: staal|aluminium|verzinkt|kunststof|bestaande_lak|plamuur
+  if (answers.group === "metaal") return answers.substrate || null;
+  if (answers.group === "kunststof") return "kunststof";
+  if (answers.group === "bestaande_lak") return "bestaande_lak";
+  if (answers.group === "plamuur") return "plamuur";
+  return null;
+}
 
 // =====================
 // UI helpers
@@ -164,12 +141,12 @@ function showResult() {
   resultCard?.classList.remove("hidden");
 }
 
-function updateTopBar() {
-  const total = steps.length;
+function updateTopBar(flow) {
+  const total = flow.length;
   const current = stepIndex + 1;
 
   if (stepText) stepText.textContent = `Stap ${current} van ${total}`;
-  if (stepHint) stepHint.textContent = steps[stepIndex].hint || "";
+  if (stepHint) stepHint.textContent = flow[stepIndex].hint || "";
 
   const pct = Math.round((current / total) * 100);
   if (progressBar) progressBar.style.width = pct + "%";
@@ -178,29 +155,26 @@ function updateTopBar() {
   if (backBtn) backBtn.disabled = stepIndex === 0;
 }
 
-function getCurrentOptions() {
-  const step = steps[stepIndex];
-  if (step.options) return step.options;
-  const substrate = answers.substrate;
-  return step.optionsMap?.[substrate] || [];
-}
-
 function renderStep() {
   showWizard();
-  updateTopBar();
 
-  const step = steps[stepIndex];
+  const flow = getFlowSteps();
+  stepIndex = clamp(stepIndex, 0, flow.length - 1);
+
+  updateTopBar(flow);
+
+  const step = flow[stepIndex];
   if (questionEl) questionEl.textContent = step.title;
 
-  const opts = getCurrentOptions();
   if (!optionsEl) return;
   optionsEl.innerHTML = "";
 
+  const opts = step.options || [];
   if (!opts.length) {
     optionsEl.innerHTML = `
       <div class="pw-empty">
         <div class="pw-empty__title">Geen opties beschikbaar</div>
-        <div class="pw-empty__text">Ga terug en kies eerst een ondergrond.</div>
+        <div class="pw-empty__text">Ga terug en maak eerst een keuze.</div>
       </div>`;
     return;
   }
@@ -213,18 +187,30 @@ function renderStep() {
     btn.type = "button";
     btn.textContent = opt.label;
     if (selected === opt.value) btn.classList.add("active");
-
     btn.addEventListener("click", () => selectOption(step.id, opt.value));
     optionsEl.appendChild(btn);
   });
 }
 
 function selectOption(stepId, value) {
+  const flow = getFlowSteps();
+
   answers[stepId] = value;
 
-  if (stepId === "substrate") delete answers.goal;
+  // Bij wissel van hoofdgroep: reset onderliggende keuzes
+  if (stepId === "group") {
+    delete answers.substrate;
+    delete answers.situation;
+  }
+  if (stepId === "substrate") {
+    // niets speciaals
+  }
 
-  if (stepIndex < steps.length - 1) {
+  // Ga naar volgende stap of toon resultaat
+  const nextFlow = getFlowSteps();
+  const lastIndex = nextFlow.length - 1;
+
+  if (stepIndex < lastIndex) {
     stepIndex += 1;
     renderStep();
     return;
@@ -243,177 +229,72 @@ function resetAll() {
   stepIndex = 0;
   answers = {};
   selectedProductIds = new Set();
+  lastAdviceProducts = [];
   closeQuickView();
   renderStep();
 }
 
 function resultBack() {
-  stepIndex = Math.max(0, steps.length - 1);
+  // terug naar laatste vraag
+  const flow = getFlowSteps();
+  stepIndex = Math.max(0, flow.length - 1);
   renderStep();
 }
 
-// =====================
-// Advice engine
-// =====================
-function buildAdvice(substrate, goal) {
-  const out = { summary: "", products: [] };
-
-  const push = (p, stepLabel, notes) => {
-    if (!p) return;
-    out.products.push({
-      stepLabel,
-      brand: p.brand || "",
-      code: p.code || "",
-      name: p.name || "",
-      notes: notes || "",
-      url: p.url || "",
-      ccvProductId: p.ccvProductId || "",
-      image: p.image || "",
-      price: p.price || "",
-      key: p.key || "",
-    });
-  };
-
-  if (substrate === "kunststof") {
-    out.summary =
-      "Voor kunststof heb je een kunststof primer nodig voor goede hechting. Breng dun aan, laat flashen, daarna kun je verder met je lakopbouw.";
-    push(PRODUCTS.plastic, "Beste keuze", "Dun aanbrengen. Zorg voor een schone, vetvrije ondergrond.");
-    push(PRODUCTS.gloves, "Tip", "Handschoenen voorkomen vet/vingerafdrukken.");
-    return out;
-  }
-
-  if (substrate === "plamuur") {
-    out.summary =
-      "Op plamuur werkt een hoogvullende primer het best: je vult schuurkrassen en krijgt een strakke, egale ondergrond.";
-    push(PRODUCTS.filler_1k, "Beste keuze", "Hoog vullend, ideaal om plamuurkrassen te vullen en strak te schuren.");
-    push(PRODUCTS.gloves, "Tip", "Handschoenen voorkomen vet/vingerafdrukken.");
-    return out;
-  }
-
-  if (substrate === "bestaande_lak") {
-    if (goal === "egaliseren") {
-      out.summary =
-        "Op geschuurde lak is een primer/filler perfect om te egaliseren en een goede basis te maken voor de lak.";
-      push(PRODUCTS.filler_1k, "Beste keuze", "Egaliseert en vult lichte schuurkrassen.");
-      push(PRODUCTS.gloves, "Tip", "Werk schoon en vetvrij voor het beste resultaat.");
-      return out;
-    }
-
-    out.summary = "Wil je meer opbouw en krassen wegwerken? Dan is een hoogvullende primer de juiste keuze.";
-    push(PRODUCTS.filler_1k, "Beste keuze", "Meer vulling/opbouw voor een strak eindresultaat.");
-    push(PRODUCTS.gloves, "Tip", "Handschoenen houden de ondergrond vetvrij.");
-    return out;
-  }
-
-  if (substrate === "blank_metaal") {
-    if (goal === "spotrepair") {
-      out.summary =
-        "Voor een snelle spotrepair op blank metaal kun je een etch primer gebruiken. Wil je meer bescherming, kies epoxy.";
-      push(PRODUCTS.etch, "Snelle keuze", "Dunne laag voor hechting op metaal (spotrepair).");
-      push(PRODUCTS.epoxy_1k, "Beste bescherming", "Epoxy geeft betere (anti)corrosie dan etch.");
-      push(PRODUCTS.gloves, "Tip", "Blank metaal is gevoelig: werk vetvrij.");
-      return out;
-    }
-
-    out.summary =
-      "Voor blank metaal is epoxy de beste basis: top hechting én (anti)corrosie. Kies 2K voor maximale performance, of 1K als snelle/handige optie.";
-    push(PRODUCTS.epoxy_2k, "Beste keuze", "Maximale hechting en corrosiebescherming (professioneel).");
-    push(PRODUCTS.epoxy_1k, "Alternatief", "Goede epoxy basis in 1K spuitbus (handig/DIY).");
-    push(PRODUCTS.zinc, "Optioneel", "Extra roestbescherming (bijv. laswerk/holtes).");
-    push(PRODUCTS.gloves, "Tip", "Handschoenen voorkomen vette afdrukken.");
-    return out;
-  }
-
-  out.summary = "Geen advies beschikbaar. Kies een ondergrond en doel.";
-  return out;
-}
+// Bind buttons
+backBtn?.addEventListener("click", goBack);
+resetBtn?.addEventListener("click", resetAll);
+resultBackBtn?.addEventListener("click", resultBack);
+startOverBtn?.addEventListener("click", resetAll);
 
 // =====================
-// Selection rules (1 primaire)
+// Advice (via API)
 // =====================
-function badgeType(label) {
-  const s = String(label || "").toLowerCase();
-  if (s.includes("beste")) return "best";
-  if (s.includes("alternatief")) return "alt";
-  if (s.includes("snelle")) return "fast";
-  if (s.includes("optioneel")) return "opt";
-  if (s.includes("tip")) return "tip";
-  return "default";
-}
-function isPrimaryLabel(label) {
-  const t = badgeType(label);
-  return t === "best" || t === "alt" || t === "fast";
-}
-
-function applyDefaultSelection(products) {
-  normalizePrimarySelection(products);
-  if (selectedProductIds.size > 0) return;
-
-  const primaries = products.filter((p) => p.ccvProductId && isPrimaryLabel(p.stepLabel));
-  const pick =
-    primaries.find((p) => badgeType(p.stepLabel) === "best") ||
-    primaries.find((p) => badgeType(p.stepLabel) === "fast") ||
-    primaries.find((p) => badgeType(p.stepLabel) === "alt") ||
-    null;
-
-  if (pick?.ccvProductId) selectedProductIds.add(String(pick.ccvProductId));
-}
-
-function normalizePrimarySelection(products) {
-  const primaryIds = products
-    .filter((p) => p.ccvProductId && isPrimaryLabel(p.stepLabel))
-    .map((p) => String(p.ccvProductId));
-
-  const selectedPrimaries = primaryIds.filter((id) => selectedProductIds.has(id));
-  if (selectedPrimaries.length <= 1) return;
-
-  const byId = new Map(products.map((p) => [String(p.ccvProductId || ""), p]));
-  const scored = selectedPrimaries
-    .map((id) => {
-      const p = byId.get(id);
-      const t = badgeType(p?.stepLabel);
-      const score = t === "best" ? 3 : t === "fast" ? 2 : t === "alt" ? 1 : 0;
-      return { id, score };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  const keep = scored[0]?.id;
-  selectedPrimaries.forEach((id) => {
-    if (id !== keep) selectedProductIds.delete(id);
-  });
-}
-
-function deselectOtherPrimaries(products, keepId) {
-  products.forEach((p) => {
-    if (!p.ccvProductId) return;
-    const id = String(p.ccvProductId);
-    if (id === keepId) return;
-    if (isPrimaryLabel(p.stepLabel)) selectedProductIds.delete(id);
-  });
-}
-
-// =====================
-// Render advice
-// =====================
-function renderAdvice() {
+async function renderAdvice() {
   showResult();
-  if (resultSummary) resultSummary.textContent = "Advies maken…";
+  if (resultSummary) resultSummary.textContent = "Advies ophalen…";
   if (productList) productList.innerHTML = "";
 
-  const data = buildAdvice(answers.substrate, answers.goal);
-  if (resultSummary) resultSummary.textContent = data.summary || "";
+  const substrate = resolveSubstrateId();
+  const situation = answers.situation || null;
 
-  const products = data.products || [];
+  if (!substrate || !situation) {
+    if (resultSummary) resultSummary.textContent = "Maak je keuzes af om advies te krijgen.";
+    return;
+  }
 
+  try {
+    const q = new URLSearchParams({ substrate, situation });
+    const res = await fetch(`/api/advice?${q.toString()}`, { cache: "no-store" });
+
+    if (!res.ok) {
+      const txt = await safeText(res);
+      throw new Error(`API ${res.status}: ${txt || "unknown"}`);
+    }
+
+    const data = await res.json();
+    const products = Array.isArray(data.products) ? data.products : [];
+    lastAdviceProducts = products;
+
+    if (resultSummary) resultSummary.textContent = data.summary || "";
+    renderProducts(products);
+  } catch (err) {
+    console.error("renderAdvice failed:", err);
+    if (resultSummary) resultSummary.textContent = "Sorry — advies laden lukt nu niet. Probeer opnieuw.";
+  }
+}
+
+function renderProducts(products) {
+  if (!productList) return;
+
+  // 1 primaire selectie: selecteer automatisch de eerste Stap 1 met ccvProductId
   applyDefaultSelection(products);
 
   const cardsHtml = products.map(renderUpsellCard).join("");
 
-  if (!productList) return;
-
   productList.innerHTML = `
     <div class="pw-panel">
-      <div class="pw-section-title">Maak je aankoop compleet</div>
+      <div class="pw-section-title">Aanbevolen producten</div>
 
       <div class="pw-upsell-list">
         ${cardsHtml || `<div class="pw-empty"><div class="pw-empty__title">Geen producten</div></div>`}
@@ -430,6 +311,53 @@ function renderAdvice() {
   updateOrderButton();
 }
 
+// =====================
+// Selection rules (1 primaire)
+// =====================
+function badgeType(label) {
+  const s = String(label || "").toLowerCase();
+  if (s.includes("stap 1")) return "best";
+  if (s.includes("stap 2")) return "alt";
+  if (s.includes("stap 3")) return "opt";
+  return "default";
+}
+function isPrimaryLabel(label) {
+  return badgeType(label) === "best"; // alleen stap 1 is primair
+}
+
+function applyDefaultSelection(products) {
+  normalizePrimarySelection(products);
+  if (selectedProductIds.size > 0) return;
+
+  const primaries = products.filter((p) => p.ccvProductId && isPrimaryLabel(p.stepLabel));
+  const pick = primaries[0] || null;
+  if (pick?.ccvProductId) selectedProductIds.add(String(pick.ccvProductId));
+}
+
+function normalizePrimarySelection(products) {
+  const primaryIds = products
+    .filter((p) => p.ccvProductId && isPrimaryLabel(p.stepLabel))
+    .map((p) => String(p.ccvProductId));
+
+  const selectedPrimaries = primaryIds.filter((id) => selectedProductIds.has(id));
+  if (selectedPrimaries.length <= 1) return;
+
+  // Houd de eerste geselecteerde primaire, drop de rest
+  selectedPrimaries.slice(1).forEach((id) => selectedProductIds.delete(id));
+}
+
+function deselectOtherPrimaries(products, keepId) {
+  products.forEach((p) => {
+    if (!p.ccvProductId) return;
+    const id = String(p.ccvProductId);
+    if (id === keepId) return;
+    if (isPrimaryLabel(p.stepLabel)) selectedProductIds.delete(id);
+  });
+}
+
+// =====================
+// Render cards
+// =====================
 function renderUpsellCard(p) {
   const id = p.ccvProductId ? String(p.ccvProductId) : "";
   const selected = id && selectedProductIds.has(id);
@@ -437,15 +365,19 @@ function renderUpsellCard(p) {
   const t = badgeType(p.stepLabel);
   const isPrimary = isPrimaryLabel(p.stepLabel);
 
-  const badgeMain = p.stepLabel ? `<span class="pw-badge pw-badge--${t}">${escapeHtml(p.stepLabel)}</span>` : "";
+  const badgeMain = p.stepLabel
+    ? `<span class="pw-badge pw-badge--${t}">${escapeHtml(p.stepLabel)}</span>`
+    : "";
+
   const badges = [
     badgeMain,
     p.brand ? `<span class="pw-badge pw-badge--meta">${escapeHtml(p.brand)}</span>` : "",
     p.code ? `<span class="pw-badge pw-badge--meta">${escapeHtml(p.code)}</span>` : "",
   ].join("");
 
-  const img = p.image
-    ? `<img class="pw-upsell-img" src="${escapeHtml(toAbsoluteUrl(p.image))}" alt="" loading="lazy">`
+  const imgUrl = p.imageUrl ? toAbsoluteUrl(p.imageUrl) : "";
+  const img = imgUrl
+    ? `<img class="pw-upsell-img" src="${escapeHtml(imgUrl)}" alt="" loading="lazy">`
     : `<div class="pw-upsell-img pw-upsell-img--placeholder" aria-hidden="true"></div>`;
 
   const priceHtml = p.price ? `<div class="pw-price">${escapeHtml(p.price)}</div>` : "";
@@ -455,11 +387,11 @@ function renderUpsellCard(p) {
          data-id="${escapeHtml(id)}"
          data-primary="${isPrimary ? "1" : "0"}"
          data-url="${escapeHtml(url)}"
-         data-name="${escapeHtml(p.name || "")}"
-         data-price="${escapeHtml(p.price || "")}"
-         data-img="${escapeHtml(toAbsoluteUrl(p.image || ""))}"
-         data-notes="${escapeHtml(p.notes || "")}"
-         data-badgelabel="${escapeHtml(p.stepLabel || "")}"
+         data-name="${escapeHtml(p.name || "") }"
+         data-price="${escapeHtml(p.price || "") }"
+         data-img="${escapeHtml(imgUrl)}"
+         data-notes="${escapeHtml(p.notes || "") }"
+         data-badgelabel="${escapeHtml(p.stepLabel || "") }"
          data-badgetype="${escapeHtml(t)}">
       ${img}
 
@@ -486,14 +418,13 @@ function bindUpsellEvents(products) {
   productList.onclick = (e) => {
     const t = e.target;
 
-    // Snel bekijken (CSP-proof modal)
+    // Snel bekijken
     const quickBtn = t?.closest?.(".pw-quickbtn");
     if (quickBtn) {
       e.preventDefault();
       e.stopPropagation();
       const card = quickBtn.closest(".pw-upsell-card");
       if (!card) return;
-
       const product = extractProductFromCard(card);
       openQuickView(product);
       return;
@@ -567,17 +498,14 @@ function updateOrderButton() {
   if (!btn) return;
 
   const count = selectedProductIds.size;
-
   if (count <= 0) {
     btn.textContent = "Bestellen";
     btn.disabled = true;
     btn.classList.add("is-disabled");
     return;
   }
-
   btn.disabled = false;
   btn.classList.remove("is-disabled");
-
   btn.textContent = count === 1 ? "Bestellen" : `${count} producten bestellen`;
 }
 
@@ -604,7 +532,7 @@ async function bulkAddSelected(products) {
 
   for (let i = 0; i < selected.length; i++) {
     window.parent.postMessage({ type: "LOM_ADD_TO_CART", payload: selected[i] }, SHOP_ORIGIN);
-    await new Promise((r) => setTimeout(r, 350));
+    await wait(350);
   }
 
   btn.textContent = "Toegevoegd ✓";
@@ -644,8 +572,8 @@ function ensureQuickViewModal() {
           <div class="pw-qv__notes"></div>
 
           <div class="pw-qv__actions">
-            <button type="button" class="pw-qv__add">Voeg toe</button>
-            <a class="pw-qv__open" target="_blank" rel="noreferrer">Open product</a>
+            <a class="pw-qv__link" target="_top" rel="noopener">Open product</a>
+            <button type="button" class="pw-qv__add">Toevoegen</button>
           </div>
         </div>
       </div>
@@ -654,91 +582,89 @@ function ensureQuickViewModal() {
   document.body.appendChild(el);
 
   el.addEventListener("click", (e) => {
-    const t = e.target;
-    if (t && t.getAttribute && t.getAttribute("data-qv-close") === "1") closeQuickView();
+    const close = e.target?.getAttribute?.("data-qv-close");
+    if (close) closeQuickView();
   });
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeQuickView();
   });
-
-  // button actions
-  const addBtn = el.querySelector(".pw-qv__add");
-  addBtn.addEventListener("click", () => {
-    if (!quickViewProduct?.id) return;
-    // voeg direct toe via CCV
-    window.parent.postMessage(
-      {
-        type: "LOM_ADD_TO_CART",
-        payload: {
-          productId: String(quickViewProduct.id),
-          quantity: 1,
-          shopUrl: quickViewProduct.url || "",
-        },
-      },
-      SHOP_ORIGIN
-    );
-    addBtn.textContent = "Toegevoegd ✓";
-    setTimeout(() => (addBtn.textContent = "Voeg toe"), 900);
-  });
 }
 
-function openQuickView(product) {
-  const wrap = document.getElementById("pwQuickView");
-  if (!wrap) return;
+function openQuickView(p) {
+  quickViewProduct = p;
+  const root = document.getElementById("pwQuickView");
+  if (!root) return;
 
-  quickViewProduct = product;
-
-  const img = wrap.querySelector(".pw-qv__img");
-  const badges = wrap.querySelector(".pw-qv__badges");
-  const name = wrap.querySelector(".pw-qv__name");
-  const price = wrap.querySelector(".pw-qv__price");
-  const notes = wrap.querySelector(".pw-qv__notes");
-  const openA = wrap.querySelector(".pw-qv__open");
-
-  if (img) {
-    img.src = product.image || "";
-    img.alt = product.name || "";
-  }
-
-  if (badges) {
-    const b = product.badgeLabel
-      ? `<span class="pw-badge pw-badge--${escapeHtml(product.badgeType)}">${escapeHtml(product.badgeLabel)}</span>`
-      : "";
-    badges.innerHTML = b;
-  }
-
-  if (name) name.textContent = product.name || "";
-  if (price) price.textContent = product.price || "";
-  if (notes) notes.textContent = product.notes || "";
-  if (openA) openA.href = product.url || "";
-
-  wrap.classList.remove("hidden");
-  document.documentElement.classList.add("pw-noscroll");
+  root.classList.remove("hidden");
   document.body.classList.add("pw-noscroll");
+
+  const img = root.querySelector(".pw-qv__img");
+  const name = root.querySelector(".pw-qv__name");
+  const price = root.querySelector(".pw-qv__price");
+  const notes = root.querySelector(".pw-qv__notes");
+  const badges = root.querySelector(".pw-qv__badges");
+  const link = root.querySelector(".pw-qv__link");
+  const addBtn = root.querySelector(".pw-qv__add");
+
+  if (img) img.src = p.image || "";
+  if (name) name.textContent = p.name || "";
+  if (price) price.textContent = p.price || "";
+  if (notes) notes.textContent = p.notes || "";
+  if (badges) badges.innerHTML = p.badgeLabel ? `<span class="pw-badge pw-badge--${escapeHtml(p.badgeType)}">${escapeHtml(p.badgeLabel)}</span>` : "";
+  if (link) link.href = p.url || "#";
+
+  if (addBtn) {
+    const selected = p.id && selectedProductIds.has(String(p.id));
+    addBtn.textContent = selected ? "Geselecteerd ✓" : "Toevoegen";
+    addBtn.disabled = !p.id;
+    addBtn.onclick = () => {
+      if (!p.id) return;
+      const isPrimary = p.badgeType === "best";
+
+      if (selectedProductIds.has(String(p.id))) {
+        selectedProductIds.delete(String(p.id));
+      } else {
+        if (isPrimary) deselectOtherPrimaries(lastAdviceProducts, String(p.id));
+        selectedProductIds.add(String(p.id));
+      }
+      normalizePrimarySelection(lastAdviceProducts);
+      syncCardSelections();
+      updateOrderButton();
+      closeQuickView();
+    };
+  }
 }
 
 function closeQuickView() {
-  const wrap = document.getElementById("pwQuickView");
-  if (!wrap) return;
-
-  wrap.classList.add("hidden");
-  document.documentElement.classList.remove("pw-noscroll");
-  document.body.classList.remove("pw-noscroll");
   quickViewProduct = null;
+  const root = document.getElementById("pwQuickView");
+  if (!root) return;
+  root.classList.add("hidden");
+  document.body.classList.remove("pw-noscroll");
 }
 
 // =====================
 // Utils
 // =====================
-function toAbsoluteUrl(pathOrUrl) {
-  const s = String(pathOrUrl || "");
-  if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  if (!s.startsWith("/")) return SHOP_BASE_URL + "/" + s;
-  return SHOP_BASE_URL + s;
+function wait(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
-function escapeHtml(s) {
-  return String(s)
+
+function clamp(n, a, b) {
+  return Math.max(a, Math.min(b, n));
+}
+
+function toAbsoluteUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("//")) return "https:" + url;
+  if (url.startsWith("/")) return SHOP_BASE_URL + url;
+  return url;
+}
+
+function escapeHtml(str) {
+  return String(str || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -746,305 +672,43 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-// =====================
-// Styles (embedded)
-// =====================
-function injectUiStyles() {
-  if (document.getElementById("pwUiV6Styles")) return;
-
-  const css = `
-  /* Panel - mobiel breder */
-  .pw-panel{
-    background:#fff;
-    border:1px solid #e9edf3;
-    border-radius:16px;
-    padding:18px;
+async function safeText(res) {
+  try {
+    return await res.text();
+  } catch (e) {
+    return "";
   }
-  @media (max-width: 520px){
-    .pw-panel{
-      margin-left:-12px;
-      margin-right:-12px;
-      border-radius:18px;
-    }
-  }
-
-  .pw-section-title{
-    font-weight:900;
-    font-size:16px;
-    margin:0 0 12px;
-    color:#0f172a;
-  }
-
-  .pw-upsell-list{ display:grid; gap:12px; margin-top:10px; }
-
-  .pw-upsell-card{
-    display:grid;
-    grid-template-columns:64px 1fr 44px;
-    align-items:center;
-    gap:14px;
-    border:1px solid #e6edf7;
-    border-radius:16px;
-    padding:14px;
-    background:#fff;
-    box-shadow:0 8px 22px rgba(16,24,40,.06);
-  }
-  .pw-upsell-card.is-selected{
-    border-color:#d7e2f2;
-    box-shadow:0 12px 26px rgba(16,24,40,.10);
-  }
-  .pw-upsell-card.is-best{
-    border-color: rgba(34,197,94,.35);
-  }
-
-  .pw-upsell-img{
-    width:64px; height:64px; border-radius:14px;
-    background:#f6f7fb;
-    border:1px solid #eef2f7;
-    object-fit:contain;
-    display:block;
-  }
-
-  .pw-upsell-meta{ min-width:0; }
-
-  .pw-upsell-badges{
-    display:flex;
-    flex-wrap:wrap;
-    gap:6px;
-    margin-bottom:8px;
-  }
-
-  .pw-badge{
-    font-size:11px;
-    font-weight:900;
-    padding:5px 10px;
-    border-radius:999px;
-    letter-spacing:.4px;
-    text-transform:uppercase;
-    line-height:1;
-    white-space:nowrap;
-  }
-  .pw-badge--best{ background:#dcfce7; color:#166534; }
-  .pw-badge--alt{ background:#dbeafe; color:#1e40af; }
-  .pw-badge--fast{ background:#ede9fe; color:#5b21b6; }
-  .pw-badge--opt{ background:#f1f5f9; color:#475569; }
-  .pw-badge--tip{ background:#fff7ed; color:#9a3412; }
-  .pw-badge--meta{
-    background:#ffffff;
-    border:1px solid #e5eaf3;
-    color:#0f172a;
-    text-transform:none;
-    letter-spacing:0;
-    font-weight:800;
-  }
-
-  .pw-upsell-name{
-    font-weight:900;
-    font-size:13.5px;
-    line-height:1.2;
-    margin:0 0 6px;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
-    color:#0f172a;
-  }
-
-  .pw-price{
-    font-weight:900;
-    font-size:13px;
-    color:#0f172a;
-    margin:0 0 6px;
-  }
-
-  .pw-upsell-notes{
-    font-size:12.5px;
-    color:#64748b;
-    margin:0 0 8px;
-  }
-
-  .pw-actions{ display:flex; align-items:center; gap:8px; }
-
-  .pw-quickbtn{
-    border:1px solid #e5eaf3;
-    background:#fff;
-    color:#0f172a;
-    font-weight:900;
-    font-size:12px;
-    padding:7px 10px;
-    border-radius:999px;
-    cursor:pointer;
-  }
-  .pw-quickbtn:hover{ background:#f6f8fc; }
-
-  .pw-upsell-add{
-    width:40px; height:40px;
-    border-radius:12px;
-    border:0;
-    background:#111;
-    color:#fff;
-    font-size:22px;
-    line-height:1;
-    cursor:pointer;
-    display:grid;
-    place-items:center;
-  }
-  .pw-upsell-add:disabled{ opacity:.45; cursor:not-allowed; }
-  .pw-upsell-card.is-selected .pw-upsell-add{
-    background:#e8eef7;
-    color:#111;
-    border:1px solid #d7e2f2;
-  }
-
-  .pw-orderbar{ margin-top:14px; }
-
-  .pw-order-button{
-    width:100%;
-    height:46px;
-    border:0;
-    border-radius:14px;
-    background:#22c55e;
-    color:#fff;
-    font-weight:900;
-    font-size:14px;
-    cursor:pointer;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-  .pw-order-button.is-disabled{ opacity:.55; cursor:not-allowed; }
-
-  .pw-empty{
-    border:1px dashed #dbe4f2;
-    border-radius:14px;
-    padding:12px;
-    color:#64748b;
-    background:#fff;
-  }
-  .pw-empty__title{ font-weight:900; color:#0f172a; margin-bottom:6px; }
-  .pw-empty__text{ font-size:13px; }
-
-  /* Quick View modal (no iframe) */
-  .pw-noscroll{ overflow:hidden !important; }
-
-  .pw-qv{
-    position:fixed;
-    inset:0;
-    z-index:9999;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:16px;
-  }
-  .pw-qv.hidden{ display:none; }
-
-  .pw-qv__backdrop{
-    position:absolute;
-    inset:0;
-    background:rgba(15,23,42,.55);
-    backdrop-filter: blur(2px);
-  }
-
-  .pw-qv__panel{
-    position:relative;
-    width:min(860px, 96vw);
-    background:#fff;
-    border-radius:18px;
-    box-shadow: 0 30px 80px rgba(0,0,0,.25);
-    overflow:hidden;
-  }
-
-  .pw-qv__top{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:12px 14px;
-    border-bottom:1px solid #eef2f7;
-  }
-  .pw-qv__title{ font-weight:900; color:#0f172a; }
-  .pw-qv__close{
-    width:36px;height:36px;
-    border-radius:12px;
-    border:1px solid #e5eaf3;
-    background:#fff;
-    cursor:pointer;
-    font-weight:900;
-  }
-  .pw-qv__close:hover{ background:#f6f8fc; }
-
-  .pw-qv__body{
-    display:grid;
-    grid-template-columns: 280px 1fr;
-    gap:14px;
-    padding:14px;
-  }
-
-  .pw-qv__media{
-    border:1px solid #eef2f7;
-    border-radius:16px;
-    background:#f8fafc;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:14px;
-  }
-  .pw-qv__img{
-    width:100%;
-    height:auto;
-    max-height:280px;
-    object-fit:contain;
-    display:block;
-  }
-
-  .pw-qv__badges{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-  .pw-qv__name{ font-weight:950; font-size:16px; color:#0f172a; margin-bottom:8px; }
-  .pw-qv__price{ font-weight:950; font-size:15px; color:#0f172a; margin-bottom:10px; }
-  .pw-qv__notes{ color:#64748b; font-size:13px; line-height:1.4; }
-
-  .pw-qv__actions{
-    margin-top:14px;
-    display:flex;
-    gap:10px;
-    flex-wrap:wrap;
-    align-items:center;
-  }
-  .pw-qv__add{
-    border:0;
-    background:#22c55e;
-    color:#fff;
-    font-weight:950;
-    padding:10px 14px;
-    border-radius:14px;
-    cursor:pointer;
-  }
-  .pw-qv__open{
-    font-weight:950;
-    font-size:13px;
-    color:#2563eb;
-    text-decoration:none;
-    padding:10px 2px;
-  }
-  .pw-qv__open:hover{ text-decoration:underline; }
-
-  @media (max-width: 620px){
-    .pw-qv__body{
-      grid-template-columns: 1fr;
-    }
-    .pw-qv__img{ max-height:220px; }
-  }
-  `;
-
-  const style = document.createElement("style");
-  style.id = "pwUiV6Styles";
-  style.textContent = css;
-  document.head.appendChild(style);
 }
 
 // =====================
-// Events
+// CSS inject (kleine aanvullingen)
 // =====================
-backBtn?.addEventListener("click", goBack);
-resetBtn?.addEventListener("click", resetAll);
-resultBackBtn?.addEventListener("click", resultBack);
-startOverBtn?.addEventListener("click", resetAll);
-
-// start
-renderStep();
+function injectUiStyles() {
+  const css = `
+    .pw-noscroll{overflow:hidden;}
+    .pw-qv.hidden{display:none;}
+    .pw-qv{position:fixed;inset:0;z-index:9999;}
+    .pw-qv__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45);}
+    .pw-qv__panel{position:relative;max-width:860px;margin:5vh auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.25);}
+    .pw-qv__top{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.08)}
+    .pw-qv__title{font-weight:700}
+    .pw-qv__close{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px 10px}
+    .pw-qv__body{display:grid;grid-template-columns:1fr 1.2fr;gap:14px;padding:16px}
+    .pw-qv__media{display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.03);border-radius:12px;min-height:240px}
+    .pw-qv__img{max-width:100%;max-height:340px;object-fit:contain}
+    .pw-qv__name{font-weight:800;font-size:18px;margin-top:8px}
+    .pw-qv__price{margin-top:6px;font-weight:700}
+    .pw-qv__notes{margin-top:10px;line-height:1.4;color:rgba(0,0,0,.75)}
+    .pw-qv__actions{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+    .pw-qv__link{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.14);text-decoration:none;color:#111}
+    .pw-qv__add{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border-radius:12px;border:0;background:#111;color:#fff;cursor:pointer}
+    @media (max-width: 760px){
+      .pw-qv__panel{margin:0;border-radius:0;max-width:none;height:100%;}
+      .pw-qv__body{grid-template-columns:1fr;}
+      .pw-qv__media{min-height:200px;}
+    }
+  `;
+  const style = document.createElement("style");
+  style.textContent = css;
+  document.head.appendChild(style);
+}
