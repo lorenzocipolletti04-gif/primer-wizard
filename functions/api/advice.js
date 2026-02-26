@@ -21,8 +21,7 @@ export async function onRequestGet({ env, request }) {
 
     const rows = await env.DB
       .prepare(
-        "SELECT rp.step, p.brand, p.name, p.code, p.notes, COALESCE(p.shop_url, p.url) AS url, " +
-        "p.ccv_product_id AS ccvProductId, p.image_url AS imageUrl, p.price AS price " +
+        "SELECT rp.step, p.brand, p.name, p.code, p.notes, COALESCE(p.shop_url, p.url) AS url, p.ccv_product_id AS ccvProductId " +
         "FROM rule_products rp " +
         "JOIN products p ON p.id = rp.product_id " +
         "WHERE rp.rule_id = ? " +
@@ -40,8 +39,6 @@ export async function onRequestGet({ env, request }) {
       notes: p.notes,
       url: p.url || null,
       ccvProductId: p.ccvProductId || null,
-      imageUrl: p.imageUrl || null,
-      price: p.price || null,
     }));
 
     return json({ substrate, situation, summary: rule.summary, products });
