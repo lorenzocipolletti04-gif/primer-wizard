@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS products (
   -- CCV product-id die in de add-to-cart payload zit (bv. 900588323)
   ccv_product_id TEXT,
 
+  -- Optioneel: afbeelding + prijs voor de UI (wizard)
+  image_url TEXT,
+  price TEXT,
+
   notes TEXT
 );
 
