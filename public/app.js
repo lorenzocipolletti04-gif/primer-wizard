@@ -104,6 +104,7 @@ const PRODUCTS = {
 };
 
 // ===== Steps =====
+// ===== Steps (uitgebreid) =====
 const steps = [
   {
     id: "substrate",
@@ -116,25 +117,39 @@ const steps = [
       { label: "Plamuur / polyester filler", value: "plamuur" },
     ],
   },
+
   {
-    id: "goal",
-    title: "Wat wil je vooral bereiken?",
-    hint: "Dit bepaalt welke primer(s) je nodig hebt.",
+    id: "need",
+    title: "Wat moet de primer voor je doen?",
+    hint: "Kies het belangrijkste doel.",
     optionsMap: {
       blank_metaal: [
-        { label: "Maximale hechting + roestbescherming", value: "max_bescherming" },
-        { label: "Snelle spotrepair (kleine plek)", value: "spotrepair" },
+        { label: "Beschermen (tegen roest / beste basis)", value: "beschermen" },
+        { label: "Snelle hechting (kleine plek)", value: "hechten" },
+        { label: "Vullen en strak maken", value: "vullen" },
       ],
-      kunststof: [{ label: "Hechting op kunststof (adhesion promoter)", value: "hechting_kunststof" }],
+      kunststof: [
+        { label: "Hechten op kunststof", value: "hechten" },
+      ],
       bestaande_lak: [
-        { label: "Egaliseren / schuurgrond maken", value: "egaliseren" },
-        { label: "Vullen (meer opbouw / krassen weg)", value: "vullen" },
+        { label: "Egaliseren (schuurgrond)", value: "egaliseren" },
+        { label: "Vullen (krassen/putjes)", value: "vullen" },
       ],
       plamuur: [
-        { label: "Vullen en strak schuren", value: "vullen_plamuur" },
-        { label: "Snelle basislaag (kleine plek)", value: "spotrepair_plamuur" },
+        { label: "Vullen en strak schuren", value: "vullen" },
+        { label: "Snelle basislaag", value: "hechten" },
       ],
     },
+  },
+
+  {
+    id: "size",
+    title: "Hoe groot is de plek?",
+    hint: "Dit helpt ons het juiste product te kiezen.",
+    options: [
+      { label: "Kleine plek (spotrepair)", value: "spot" },
+      { label: "Groter oppervlak / paneel", value: "groot" },
+    ],
   },
 ];
 
@@ -222,7 +237,10 @@ function renderStep() {
 function selectOption(stepId, value) {
   answers[stepId] = value;
 
-  if (stepId === "substrate") delete answers.goal;
+  if (stepId === "substrate") {
+  delete answers.need;
+  delete answers.size;
+}
 
   if (stepIndex < steps.length - 1) {
     stepIndex += 1;
@@ -255,7 +273,7 @@ function resultBack() {
 // =====================
 // Advice engine
 // =====================
-function buildAdvice(substrate, goal) {
+function buildAdvice(substrate, need) {
   const out = { summary: "", products: [] };
 
   const push = (p, stepLabel, notes) => {
@@ -400,7 +418,7 @@ function renderAdvice() {
   if (resultSummary) resultSummary.textContent = "Advies maken…";
   if (productList) productList.innerHTML = "";
 
-  const data = buildAdvice(answers.substrate, answers.goal);
+  const data = buildAdvice(answers.substrate, answers.need);
   if (resultSummary) resultSummary.textContent = data.summary || "";
 
   const products = data.products || [];
